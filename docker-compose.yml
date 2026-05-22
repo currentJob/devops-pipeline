@@ -1,0 +1,56 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    env_file: .env
+    # restart: unless-stopped
+    # 알림 HTTP 엔드포인트 — 호스트의 127.0.0.1 에서만 접근 가능
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      worker:
+        condition: service_started
+    # 네트워크 연결만 허용, 불필요한 권한 제거
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import app.config"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    # restart: unless-stopped
+    # 호스트 포트 매핑 없음 — 봇에서만 내부 네트워크로 접근 가능
+    expose:
+      - "8766"
+    volumes:
+      - ./logs:/app/logs
+      # 권한 그룹 B: 프로젝트 전체는 읽기 전용으로 노출, prompts/output 만 RW
+      - ./:/workspace:ro
+      - ./prompts/output:/workspace/prompts/output:rw
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health', timeout=3)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

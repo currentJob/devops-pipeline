@@ -1,0 +1,31 @@
+## 사용법
+##   1) uv sync  (pre-commit 이 dev 의존성에 포함)
+##   2) uv run pre-commit install
+##   3) 이후 git commit 시 자동 실행. 수동 실행: uv run pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+
+  # ruff: lint + format. pyproject.toml 의 [tool.ruff] 설정 자동 사용.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.13  # pyproject.toml 의 ruff 버전과 동기화 권장
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # gitleaks: 커밋되는 시크릿 자동 감지 (이전 사이클의 .env / 토큰 노출 재발 방지)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
