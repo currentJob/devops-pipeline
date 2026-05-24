@@ -64,7 +64,11 @@ def _make_worker_result_handler(bot_app: Application):
         if not result:
             return web.Response(status=400, text="empty result")
 
-        text = f"✅ *작업 완료* (id=`{task_id}`)\n\n{result}"
+        header = f"✅ *작업 완료* (id=`{task_id}`)\n\n"
+        max_result = 4096 - len(header) - len("\n…(잘림)")
+        if len(result) > max_result:
+            result = result[:max_result] + "\n…(잘림)"
+        text = header + result
         try:
             await bot_app.bot.send_message(
                 chat_id=config.TELEGRAM_CHAT_ID,

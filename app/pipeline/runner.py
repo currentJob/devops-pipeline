@@ -6,7 +6,8 @@ from enum import Enum
 import anthropic
 from telegram.ext import Application
 
-from app import config, notifier
+from app import config
+from app.bot import notifier
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,6 @@ class PipelineResult:
     step: str
     status: StepStatus
     data: dict = field(default_factory=dict)
-
-
-# ── Claude 헬퍼 ──────────────────────────────────────────────────────────────
 
 
 def _claude_client() -> anthropic.Anthropic | None:
@@ -55,9 +53,6 @@ def analyze_with_claude(prompt: str) -> str:
     except anthropic.APIError as e:
         logger.warning("Claude API 오류: %s", e)
         return f"(Claude API 오류 - {e})"
-
-
-# ── 파이프라인 스텝 ──────────────────────────────────────────────────────────
 
 
 async def step_collect(app: Application) -> PipelineResult:
@@ -100,15 +95,11 @@ async def step_execute(app: Application, analysis: dict) -> PipelineResult:
     """3단계: 실제 처리 실행 (실제 구현에서는 외부 API, DB 업데이트 등으로 교체)"""
     logger.info("[3단계] 실행 시작")
 
-    # 실제 작업 수행 위치
     result = {"processed": True, "message": "작업 완료"}
 
     await notifier.send_message(app, "✅ *3단계 완료*: 모든 처리가 완료되었습니다.")
     logger.info("[3단계] 완료: %s", result)
     return PipelineResult(step="execute", status=StepStatus.APPROVED, data=result)
-
-
-# ── 메인 파이프라인 ──────────────────────────────────────────────────────────
 
 
 async def run(app: Application) -> list[PipelineResult]:
@@ -118,11 +109,9 @@ async def run(app: Application) -> list[PipelineResult]:
     await notifier.send_message(app, "🚀 *자동화 파이프라인 시작*")
     logger.info("파이프라인 시작")
 
-    # 1단계: 수집
     r1 = await step_collect(app)
     results.append(r1)
 
-    # 2단계: 분석 + 승인
     r2 = await step_analyze(app, r1.data)
     results.append(r2)
 
@@ -131,7 +120,6 @@ async def run(app: Application) -> list[PipelineResult]:
         logger.info("파이프라인 중단 - 사용자 거절")
         return results
 
-    # 3단계: 실행
     r3 = await step_execute(app, r2.data)
     results.append(r3)
 

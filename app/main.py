@@ -3,7 +3,9 @@ import logging
 
 from telegram.ext import Application
 
-from app import commands, config, notifier, notify_http
+from app import config
+from app.bot import commands, notifier
+from app.bot.server import start_server
 
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
@@ -20,7 +22,7 @@ async def main() -> None:
     async with app:
         await app.start()
         await app.updater.start_polling()
-        notify_runner = await notify_http.start_server(app)
+        notify_runner = await start_server(app)
         logger.info("봇 대기 중 - 텔레그램에서 /run 으로 파이프라인 실행")
         await notifier.send_message(app, "🟢 *봇 시작됨* - `/run` 으로 파이프라인을 실행하세요")
 

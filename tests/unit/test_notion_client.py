@@ -1,4 +1,4 @@
-"""app/notion_client.py 의 순수 함수(파서) 단위 테스트.
+"""app/notion/client.py 의 순수 함수(파서) 단위 테스트.
 
 HTTP 호출(search_pages, create_page) 은 통합 테스트로 미루고,
 마크다운 → 블록 변환만 검증.
@@ -6,7 +6,7 @@ HTTP 호출(search_pages, create_page) 은 통합 테스트로 미루고,
 
 from __future__ import annotations
 
-from app import notion_client
+from app.notion import client as notion_client
 
 
 def test_markdown_to_blocks_headings():

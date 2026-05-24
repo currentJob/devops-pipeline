@@ -1,4 +1,4 @@
-"""app/tools.py 의 안전 가드 단위 테스트.
+"""app/tools 도메인의 안전 가드 단위 테스트.
 
 WORKSPACE 는 임시 디렉토리로 monkeypatch 하여 호스트 파일 시스템과 격리.
 """
@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from app import tools
+from app.tools import filesystem
 
 # 워커는 Linux 컨테이너에서만 운영되므로, Windows 호스트의 unit 테스트 환경에서는
 # 일부 POSIX 도구(ls 등) 가 없어 실제 subprocess 호출이 불가하다.
@@ -27,7 +28,7 @@ def _temp_workspace(tmp_path, monkeypatch):
     (tmp_path / "prompts").mkdir()
     (tmp_path / "prompts" / "output").mkdir()
     (tmp_path / "secret.txt").write_text("super secret\n", encoding="utf-8")
-    monkeypatch.setattr(tools, "WORKSPACE", tmp_path)
+    monkeypatch.setattr(filesystem, "WORKSPACE", tmp_path)
     return tmp_path
 
 
@@ -56,10 +57,9 @@ def test_read_file_traversal_rejected():
     assert "traversal" in result
 
 
-def test_read_file_size_limit(tmp_path, monkeypatch):
+def test_read_file_size_limit(tmp_path):
     huge = tmp_path / "huge.bin"
     huge.write_bytes(b"x" * (tools.MAX_FILE_BYTES + 1))
-    monkeypatch.setattr(tools, "WORKSPACE", tmp_path)
     result = tools.read_file("huge.bin")
     assert "너무 큼" in result
 

@@ -1,6 +1,6 @@
 """Notion REST API 의 가벼운 클라이언트 (워커용).
 
-사이클10 의 /stack 워크플로에서 사용. aiohttp 만 의존하며 외부 SDK 없음.
+aiohttp 만 의존하며 외부 SDK 없음.
 필요한 환경 변수:
 - NOTION_TOKEN: Internal Integration Token
 - NOTION_PARENT_PAGE_ID: 새 페이지가 생성될 부모 페이지 (통합과 공유되어 있어야 함)
@@ -48,7 +48,7 @@ async def check_connection(token: str, parent_page_id: str) -> dict:
     반환: {
         "token_ok": bool,
         "page_ok": bool,
-        "page_status": int | None,   # Notion API HTTP 상태코드
+        "page_status": int | None,
         "error": str | None,
     }
     """
@@ -56,7 +56,6 @@ async def check_connection(token: str, parent_page_id: str) -> dict:
     timeout = aiohttp.ClientTimeout(total=TIMEOUT_S)
 
     async with aiohttp.ClientSession() as session:
-        # 1) 토큰 유효성: 빈 검색으로 API 응답 확인
         async with session.post(
             f"{NOTION_API}/search",
             headers=_headers(token),
@@ -72,7 +71,6 @@ async def check_connection(token: str, parent_page_id: str) -> dict:
                 return result
             result["token_ok"] = True
 
-        # 2) 부모 페이지 접근: 페이지 조회로 권한 확인
         async with session.get(
             f"{NOTION_API}/pages/{parent_page_id}",
             headers=_headers(token),
