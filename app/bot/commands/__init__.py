@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 import uuid
 
@@ -8,9 +7,6 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler
 
 from app import config
-
-WORKER_URL = os.environ.get("WORKER_URL", "http://worker:8766/run")
-WORKER_HEALTH_URL = os.environ.get("WORKER_HEALTH_URL", "http://worker:8766/health")
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +42,7 @@ async def _dispatch_to_worker(
         async with (
             aiohttp.ClientSession() as session,
             session.post(
-                WORKER_URL,
+                config.WORKER_URL,
                 json={
                     "task_id": task_id,
                     "description": description,

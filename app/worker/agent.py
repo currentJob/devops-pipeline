@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 
 import aiohttp
@@ -16,12 +15,6 @@ import anthropic
 from app import config, tools
 
 logger = logging.getLogger(__name__)
-
-BOT_NOTIFY_URL = os.environ.get("BOT_NOTIFY_URL", "http://bot:8765/notify")
-MODEL = os.environ.get("WORKER_MODEL", "claude-haiku-4-5-20251001")
-MAX_TOKENS = int(os.environ.get("WORKER_MAX_TOKENS", "8192"))
-MAX_ITERATIONS = int(os.environ.get("WORKER_MAX_ITERATIONS", "10"))
-TIMEOUT_S = float(os.environ.get("WORKER_TIMEOUT_S", "120"))
 
 SYSTEM_PROMPT = """당신은 DevOps/IaC 자동화 어시스턴트입니다.
 
@@ -50,7 +43,7 @@ async def _notify(text: str) -> None:
         async with (
             aiohttp.ClientSession() as session,
             session.post(
-                BOT_NOTIFY_URL,
+                config.WORKER_BOT_NOTIFY_URL,
                 json={"text": text},
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as resp,
@@ -94,15 +87,15 @@ async def _run_with_tools(task_id: str, prompt: str) -> str:
     messages: list[dict] = [{"role": "user", "content": augmented}]
     start = time.monotonic()
 
-    for iteration in range(MAX_ITERATIONS):
+    for iteration in range(config.WORKER_MAX_ITERATIONS):
         elapsed = time.monotonic() - start
-        if elapsed > TIMEOUT_S:
-            return f"(타임아웃: {elapsed:.1f}s > {TIMEOUT_S}s)"
+        if elapsed > config.WORKER_TIMEOUT_S:
+            return f"(타임아웃: {elapsed:.1f}s > {config.WORKER_TIMEOUT_S}s)"
 
         try:
             response = await client.messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
+                model=config.WORKER_MODEL,
+                max_tokens=config.WORKER_MAX_TOKENS,
                 system=SYSTEM_PROMPT,
                 tools=tools.TOOLS_SCHEMA,
                 messages=messages,
@@ -137,4 +130,4 @@ async def _run_with_tools(task_id: str, prompt: str) -> str:
 
         return f"(예상하지 못한 stop_reason: {response.stop_reason})"
 
-    return f"(최대 반복 횟수 {MAX_ITERATIONS}회 초과)"
+    return f"(최대 반복 횟수 {config.WORKER_MAX_ITERATIONS}회 초과)"

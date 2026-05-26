@@ -19,20 +19,19 @@ import aiohttp
 from aiohttp import web
 
 from app import config
-from app.worker.agent import MODEL, MAX_ITERATIONS, TIMEOUT_S, _notify, _run_with_tools
+from app.worker.agent import _notify, _run_with_tools
 
 logger = logging.getLogger(__name__)
 
 WORKER_HOST = "0.0.0.0"
 WORKER_PORT = int(os.environ.get("WORKER_PORT", "8766"))
-BOT_RESULT_URL = os.environ.get("BOT_RESULT_URL", "http://bot:8765/worker-result")
 
 
 async def _report_result(task_id: str, result: str) -> None:
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(
-                BOT_RESULT_URL,
+                config.WORKER_BOT_RESULT_URL,
                 json={"task_id": task_id, "result": result},
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
@@ -123,9 +122,9 @@ async def main() -> None:
     logger.info("워커 시작: http://%s:%d", WORKER_HOST, WORKER_PORT)
     logger.info(
         "tool use 설정: model=%s max_iter=%d timeout=%.0fs",
-        MODEL,
-        MAX_ITERATIONS,
-        TIMEOUT_S,
+        config.WORKER_MODEL,
+        config.WORKER_MAX_ITERATIONS,
+        config.WORKER_TIMEOUT_S,
     )
 
     stop = asyncio.Event()

@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from app import config
-from app.bot.commands import WORKER_HEALTH_URL, _authorized, _format_uptime, _state
+from app.bot.commands import _authorized, _format_uptime, _state
 
 
 async def cmd_start(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -90,7 +90,7 @@ async def cmd_health(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         async with (
             aiohttp.ClientSession() as session,
-            session.get(WORKER_HEALTH_URL, timeout=aiohttp.ClientTimeout(total=3)) as resp,
+            session.get(config.WORKER_HEALTH_URL, timeout=aiohttp.ClientTimeout(total=3)) as resp,
         ):
             worker_ok = resp.status == 200
             if not worker_ok:
