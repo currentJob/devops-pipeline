@@ -10,6 +10,7 @@ POST /run  body: {"task_id": str, "description": str}
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import os
 import uuid
@@ -47,7 +48,30 @@ async def _report_result(task_id: str, result: str) -> None:
             logger.error("결과 전송 실패 task_id=%s: %s", task_id, e)
 
 
-async def _process_task(task_id: str, description: str) -> None:
+async def _upload_to_notion(task_id: str, description: str, result: str) -> None:
+    """작업 결과를 마크다운 페이지로 Notion에 업로드."""
+    from app.notion import client as notion_client
+
+    title = description[:60] + ("…" if len(description) > 60 else "")
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    markdown = f"> 실행일시: {now}\n\n{result}"
+
+    page = await notion_client.create_page(
+        token=config.NOTION_TOKEN,
+        parent_page_id=config.NOTION_PARENT_PAGE_ID,
+        title=title,
+        markdown=markdown,
+        icon="📋",
+    )
+    if "error" in page:
+        logger.warning("Notion 업로드 실패 task_id=%s: %s", task_id, page["error"])
+        await _notify(f"⚠️ Notion 업로드 실패 (id=`{task_id}`): {page['error']}")
+    else:
+        logger.info("Notion 업로드 완료 task_id=%s url=%s", task_id, page["url"])
+        await _notify(f"📋 Notion 저장 완료 (id=`{task_id}`)\n{page['url']}")
+
+
+async def _process_task(task_id: str, description: str, upload_to_notion: bool = False) -> None:
     logger.info("작업 시작 task_id=%s desc=%r", task_id, description[:80])
     short_desc = description[:200] + ("…" if len(description) > 200 else "")
     await _notify(f"⚙️ *작업 처리 시작* (id=`{task_id}`)\n{short_desc}")
@@ -56,6 +80,8 @@ async def _process_task(task_id: str, description: str) -> None:
     except Exception as e:
         logger.exception("작업 처리 중 예외 task_id=%s", task_id)
         result = f"(내부 오류: {type(e).__name__}: {e})"
+    if upload_to_notion and config.NOTION_TOKEN and config.NOTION_PARENT_PAGE_ID:
+        await _upload_to_notion(task_id, description, result)
     await _report_result(task_id, result)
     logger.info("작업 완료 task_id=%s", task_id)
 
@@ -70,8 +96,9 @@ async def _handle_run(request: web.Request) -> web.Response:
     description = (body.get("description") or "").strip()
     if not description:
         return web.Response(status=400, text="empty description")
+    upload_to_notion = bool(body.get("upload_to_notion", False))
 
-    asyncio.create_task(_process_task(task_id, description))
+    asyncio.create_task(_process_task(task_id, description, upload_to_notion))
     logger.info("작업 큐 등록 task_id=%s", task_id)
     return web.Response(status=202, text=task_id)
 

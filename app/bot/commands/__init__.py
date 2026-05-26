@@ -37,7 +37,9 @@ def _format_uptime(seconds: float) -> str:
     return " ".join(parts)
 
 
-async def _dispatch_to_worker(update: Update, description: str) -> None:
+async def _dispatch_to_worker(
+    update: Update, description: str, upload_to_notion: bool = False
+) -> None:
     """공통 패턴: 워커에 작업 위임 + 즉시 '작업 시작' 응답."""
     task_id = str(uuid.uuid4())[:8]
     try:
@@ -45,7 +47,11 @@ async def _dispatch_to_worker(update: Update, description: str) -> None:
             aiohttp.ClientSession() as session,
             session.post(
                 WORKER_URL,
-                json={"task_id": task_id, "description": description},
+                json={
+                    "task_id": task_id,
+                    "description": description,
+                    "upload_to_notion": upload_to_notion,
+                },
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as resp,
         ):

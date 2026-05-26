@@ -70,9 +70,13 @@ async def step_analyze(app: Application, collected: dict) -> PipelineResult:
     """2단계: Claude로 데이터 분석 후 사용자 승인 요청"""
     logger.info("[2단계] 분석 시작")
 
-    summary = analyze_with_claude(
-        f"다음 수집 데이터를 분석하고 처리 진행 여부를 판단해주세요:\n{collected}"
-    )
+    from app.rag import retrieve_context
+
+    context = await retrieve_context(str(collected))
+    prompt = f"다음 수집 데이터를 분석하고 처리 진행 여부를 판단해주세요:\n{collected}"
+    if context:
+        prompt += f"\n\n{context}\n\n위 참고 문서를 기반으로 신뢰성 있는 분석을 제공하세요."
+    summary = analyze_with_claude(prompt)
 
     approved = await notifier.request_approval(
         app=app,

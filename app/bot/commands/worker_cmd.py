@@ -19,7 +19,7 @@ async def cmd_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    await _dispatch_to_worker(update, description)
+    await _dispatch_to_worker(update, description, upload_to_notion=True)
 
 
 async def cmd_lint(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
