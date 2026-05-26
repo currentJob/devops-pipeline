@@ -35,7 +35,8 @@ async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         "`/status` CPU/메모리/디스크\n\n"
         "*운영*\n"
         "`/uptime` 봇 가동 시간\n"
-        "`/health` 봇+워커+Claude API 종합 헬스\n\n"
+        "`/health` 봇+워커+Claude API 종합 헬스\n"
+        "`/model` 현재 사용 중인 AI 모델\n\n"
         "*품질 검사 (워커 위임)*\n"
         "`/lint` ruff check 실행\n"
         "`/test` pytest 실행\n"
@@ -63,7 +64,7 @@ async def cmd_status(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> Non
         f"💻 CPU: {cpu}%\n"
         f"🧠 메모리: {mem.percent}% ({mem.used // 1024**2}MB / {mem.total // 1024**2}MB)\n"
         f"💾 디스크: {disk.percent}% 사용 중\n"
-        f"⚙️ 파이프라인: {'실행 중' if _state['running'] else '대기 중'}",
+        f"⚙️ 파이프라인: {'실행 중' if _state.running else '대기 중'}",
         parse_mode="Markdown",
     )
 
@@ -71,12 +72,22 @@ async def cmd_status(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> Non
 async def cmd_uptime(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return
-    if _state["start_time"] is None:
+    if _state.start_time is None:
         await update.message.reply_text("⚠️ 시작 시각 미설정")
         return
-    elapsed = time.monotonic() - _state["start_time"]
+    elapsed = time.monotonic() - _state.start_time
     await update.message.reply_text(
         f"🕐 *Uptime*: {_format_uptime(elapsed)}",
+        parse_mode="Markdown",
+    )
+
+
+async def cmd_model(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _authorized(update):
+        return
+    await update.message.reply_text(
+        f"🤖 *현재 사용 모델*\n\n"
+        f"`{config.WORKER_MODEL}`",
         parse_mode="Markdown",
     )
 

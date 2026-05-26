@@ -41,8 +41,8 @@ def analyze_with_claude(prompt: str) -> str:
 
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
+            model=config.WORKER_MODEL,
+            max_tokens=config.WORKER_MAX_TOKENS,
             system="당신은 자동화 파이프라인의 분석 전문가입니다. 간결하고 명확하게 분석 결과를 제공하세요.",
             messages=[{"role": "user", "content": prompt}],
         )

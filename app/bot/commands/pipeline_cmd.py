@@ -15,7 +15,7 @@ async def cmd_run(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return
 
-    if _state["running"]:
+    if _state.running:
         await update.message.reply_text("⚠️ 파이프라인이 이미 실행 중입니다.")
         return
 
@@ -24,11 +24,11 @@ async def cmd_run(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def _run_pipeline(app: Application) -> None:
-    _state["running"] = True
+    _state.running = True
     try:
         await pipeline.run(app)
     except Exception:
         logger.exception("파이프라인 오류")
         await notifier.send_message(app, "🔴 *오류*: 파이프라인이 예기치 않게 종료되었습니다.")
     finally:
-        _state["running"] = False
+        _state.running = False

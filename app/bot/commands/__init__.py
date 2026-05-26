@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 
 import aiohttp
 from telegram import Update
@@ -10,8 +11,14 @@ from app import config
 
 logger = logging.getLogger(__name__)
 
-# 파이프라인 실행 상태 + 봇 시작 시각을 공유 상태로 관리
-_state: dict = {"running": False, "start_time": None}
+
+@dataclass
+class BotState:
+    running: bool = False
+    start_time: float | None = None
+
+
+_state = BotState()
 
 
 def _authorized(update: Update) -> bool:
@@ -69,11 +76,11 @@ async def _dispatch_to_worker(
 
 
 def register_commands(app: Application) -> None:
-    _state["start_time"] = time.monotonic()
+    _state.start_time = time.monotonic()
 
     # 지연 import: 순환 참조 방지 (submodule 들이 이 __init__ 을 import 하므로)
     from app.bot.commands.pipeline_cmd import cmd_run
-    from app.bot.commands.system import cmd_health, cmd_help, cmd_start, cmd_status, cmd_uptime
+    from app.bot.commands.system import cmd_health, cmd_help, cmd_model, cmd_start, cmd_status, cmd_uptime
     from app.bot.commands.worker_cmd import (
         cmd_audit,
         cmd_diff,
@@ -91,6 +98,7 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("task", cmd_task))
     app.add_handler(CommandHandler("uptime", cmd_uptime))
     app.add_handler(CommandHandler("health", cmd_health))
+    app.add_handler(CommandHandler("model", cmd_model))
     app.add_handler(CommandHandler("lint", cmd_lint))
     app.add_handler(CommandHandler("test", cmd_test))
     app.add_handler(CommandHandler("audit", cmd_audit))

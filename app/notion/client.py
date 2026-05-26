@@ -12,6 +12,8 @@ from typing import Any
 
 import aiohttp
 
+from app.notion.markdown import markdown_to_blocks
+
 NOTION_API = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
 TIMEOUT_S = 15
@@ -139,77 +141,6 @@ async def fetch_page_content(token: str, page_id: str, max_chars: int = 1500) ->
         if text:
             parts.append(text)
     return "\n".join(parts)[:max_chars]
-
-
-# ── 마크다운 → Notion blocks (간이 파서) ─────────────────────────────────────
-
-
-def _rich_text(content: str) -> list[dict]:
-    # Notion block 한 개당 텍스트 길이 한도 2000자 — 안전을 위해 분할
-    if len(content) <= 2000:
-        return [{"type": "text", "text": {"content": content}}]
-    chunks = [content[i : i + 2000] for i in range(0, len(content), 2000)]
-    return [{"type": "text", "text": {"content": c}} for c in chunks]
-
-
-def _block(block_type: str, text: str) -> dict:
-    return {
-        "object": "block",
-        "type": block_type,
-        block_type: {"rich_text": _rich_text(text)},
-    }
-
-
-def markdown_to_blocks(md: str) -> list[dict]:
-    """단순 마크다운 → Notion 블록.
-
-    지원: `# / ## / ###` heading, `- ` bulleted, `> ` quote, ``` code, 기타 paragraph.
-    Notion API 한 호출에 최대 100 블록 — 초과 시 호출자가 잘라야 함.
-    """
-    blocks: list[dict] = []
-    in_code = False
-    code_buf: list[str] = []
-    for raw in md.splitlines():
-        line = raw.rstrip()
-
-        if line.startswith("```"):
-            if in_code:
-                code_text = "\n".join(code_buf)
-                blocks.append(
-                    {
-                        "object": "block",
-                        "type": "code",
-                        "code": {
-                            "rich_text": _rich_text(code_text),
-                            "language": "plain text",
-                        },
-                    }
-                )
-                code_buf = []
-                in_code = False
-            else:
-                in_code = True
-            continue
-
-        if in_code:
-            code_buf.append(line)
-            continue
-
-        if not line:
-            continue
-        if line.startswith("### "):
-            blocks.append(_block("heading_3", line[4:]))
-        elif line.startswith("## "):
-            blocks.append(_block("heading_2", line[3:]))
-        elif line.startswith("# "):
-            blocks.append(_block("heading_1", line[2:]))
-        elif line.startswith("- "):
-            blocks.append(_block("bulleted_list_item", line[2:]))
-        elif line.startswith("> "):
-            blocks.append(_block("quote", line[2:]))
-        else:
-            blocks.append(_block("paragraph", line))
-    return blocks[:100]  # Notion children 한도
 
 
 async def create_page(

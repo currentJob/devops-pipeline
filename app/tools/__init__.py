@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import inspect
 import logging
+from collections.abc import Callable
 
 from app.tools.filesystem import MAX_FILE_BYTES, WORKSPACE, WRITE_PREFIX, read_file, write_file
 from app.tools.notion import _notion_create_page, _notion_search
 from app.tools.shell import BASH_ALLOWLIST, BASH_TIMEOUT_S, SHELL_METAS, bash
 
 logger = logging.getLogger(__name__)
+
+# 새 도구 추가 시 이 dict 에만 항목 추가 — execute() 수정 불필요 (OCP)
+_TOOL_HANDLERS: dict[str, Callable] = {
+    "read_file": lambda a: read_file(a["path"]),
+    "write_file": lambda a: write_file(a["path"], a["content"]),
+    "bash": lambda a: bash(a["command"]),
+    "notion_search": lambda a: _notion_search(a["query"], int(a.get("limit", 10))),
+    "notion_create_page": lambda a: _notion_create_page(a["title"], a["content"], a.get("icon")),
+}
 
 TOOLS_SCHEMA = [
     {
@@ -95,20 +106,16 @@ TOOLS_SCHEMA = [
 
 async def execute(name: str, args: dict) -> str:
     """Claude 가 호출한 도구 이름 + 인자 → 결과 문자열."""
+    handler = _TOOL_HANDLERS.get(name)
+    if handler is None:
+        return f"알 수 없는 도구: {name}"
     try:
-        if name == "read_file":
-            return read_file(args["path"])
-        if name == "write_file":
-            return write_file(args["path"], args["content"])
-        if name == "bash":
-            return await bash(args["command"])
-        if name == "notion_search":
-            return await _notion_search(args["query"], int(args.get("limit", 10)))
-        if name == "notion_create_page":
-            return await _notion_create_page(args["title"], args["content"], args.get("icon"))
+        result = handler(args)
+        if inspect.isawaitable(result):
+            return await result
+        return result
     except KeyError as e:
         return f"필수 인자 누락: {e}"
     except Exception as e:
         logger.exception("도구 실행 오류 name=%s", name)
         return f"도구 실행 오류: {e}"
-    return f"알 수 없는 도구: {name}"

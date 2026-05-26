@@ -1,3 +1,5 @@
+import datetime
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -110,9 +112,11 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
     """`/stack` — IT 트렌드를 조사해서 Notion 에 새 페이지 생성. 중복 회피."""
     if not _authorized(update):
         return
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    year = datetime.date.today().year
     await _dispatch_to_worker(
         update,
-        "[STACK_TASK] 다음 절차를 정확히 따라 실행해라.\n\n"
+        f"[STACK_TASK] 오늘 날짜: {today}. 다음 절차를 정확히 따라 실행해라.\n\n"
         "1. notion_search 도구로 다음 4가지 쿼리를 차례로 호출해 기존 페이지 제목을 수집:\n"
         "   - 'IT 트렌드'\n"
         "   - 'tech stack'\n"
@@ -120,7 +124,9 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
         "   - 'technology'\n"
         "2. 검색 결과의 제목들에서 이미 다뤄진 카테고리를 추정 (예: AI 에이전트, "
         "WebAssembly, Iceberg, DevOps, 보안 등). 정확히 매칭되는 카테고리만 '다뤄짐' 으로 분류.\n"
-        "3. 다뤄지지 않았거나 보강할 만한 **신규 카테고리 3~5개** 를 선정. 예시 후보군:\n"
+        f"3. {today} 기준으로 다뤄지지 않았거나 보강할 만한 **신규 카테고리 3~5개** 를 선정.\n"
+        f"   반드시 {today} 시점에 실제로 주목받고 있는 기술을 선정할 것.\n"
+        "   예시 후보군 (시점 맞지 않으면 다른 트렌드로 대체 가능):\n"
         "   - Mojo/Zig (신흥 시스템 언어)\n"
         "   - Tauri/Wails (네이티브 데스크톱)\n"
         "   - Local-First 데이터 (CRDT, Automerge, Yjs)\n"
@@ -130,16 +136,16 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
         "   - Bazel/Nx (모노레포 빌드)\n"
         "   - WebGPU\n"
         "   - 실시간 협업 (Liveblocks, PartyKit)\n"
-        "   * 위는 예시일 뿐 — 다른 트렌드도 좋음. 기존과 겹치지 않으면 OK.\n"
-        "4. 선정한 각 카테고리에 대해 마크다운 섹션을 작성:\n"
+        "   * 위는 예시일 뿐 — 기존과 겹치지 않으면 OK.\n"
+        f"4. {today} 기준 각 카테고리에 대해 마크다운 섹션을 작성:\n"
         "   - ## 카테고리명\n"
-        "   - ### 트렌드 개요 (2~4문장)\n"
+        f"   - ### {today} 기준 트렌드 개요 (2~4문장, 현재 시점 채택률·성숙도 포함)\n"
         "   - ### 핵심 기술 스택 (불릿)\n"
         "   - ### 추천 학습 자료 (가능하면 알고 있는 공식 문서/주요 블로그 링크)\n"
         "   - ### 적합한 역할\n"
-        "5. 본문 맨 앞에 짧은 서론(왜 이 신규 트렌드들인지) + 맨 뒤에 '우선순위 추천' 짧게.\n"
+        f"5. 본문 맨 앞에 '{today} 기준 신규 트렌드를 선정한 이유' 서론 + 맨 뒤에 '우선순위 추천' 짧게.\n"
         "6. notion_create_page 호출:\n"
-        "   - title: '2026 신규 트렌드 — <오늘 날짜 YYYY-MM-DD>'\n"
+        f"   - title: '{year} 신규 트렌드 — {today}'\n"
         "   - content: 위 마크다운\n"
         "   - icon: '🆕'\n"
         "7. 응답: 생성된 페이지 url 만 한 줄로 알려줘. 추가 설명 불필요.",
