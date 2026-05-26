@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import time
 
@@ -83,6 +84,9 @@ async def _run_with_tools(task_id: str, prompt: str) -> str:
     context = await retrieve_context(prompt)
     augmented = f"{prompt}\n\n{context}\n\n위 참고 문서를 기반으로 답변하세요." if context else prompt
 
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    system = f"{SYSTEM_PROMPT}\n\n오늘 날짜: {today}. 날짜 관련 판단·트렌드 분석은 반드시 이 날짜를 기준으로 할 것."
+
     client = anthropic.AsyncAnthropic(api_key=config.CLAUDE_API_KEY)
     messages: list[dict] = [{"role": "user", "content": augmented}]
     start = time.monotonic()
@@ -96,7 +100,7 @@ async def _run_with_tools(task_id: str, prompt: str) -> str:
             response = await client.messages.create(
                 model=config.WORKER_MODEL,
                 max_tokens=config.WORKER_MAX_TOKENS,
-                system=SYSTEM_PROMPT,
+                system=system,
                 tools=tools.TOOLS_SCHEMA,
                 messages=messages,
             )
