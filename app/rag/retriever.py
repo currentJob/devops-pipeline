@@ -1,41 +1,57 @@
-"""RAG (Retrieval-Augmented Generation) 검색 모듈.
+"""RAG — 웹 검색 기반 최신 데이터 참조 파이프라인.
 
-Notion 워크스페이스와 로컬 파일에서 쿼리 관련 문서를 검색하여
-Claude 프롬프트에 주입할 컨텍스트를 구성한다.
+1순위: Brave Search API (BRAVE_API_KEY 설정 시) → 실시간 웹 결과
+2순위: 로컬 문서 (*.md / *.txt / *.rst) → 프로젝트 컨텍스트 보완
 """
 
 from __future__ import annotations
 
 import logging
 
+import aiohttp
+
+from app import config
+
 logger = logging.getLogger(__name__)
 
 MAX_DOCS = 5
 MAX_CONTENT_CHARS = 1500
+_BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
 
 
-async def _notion_docs(query: str) -> list[dict]:
-    from app import config
-    from app.notion import client as notion_client
-
-    if not config.NOTION_TOKEN:
+async def _web_search_docs(query: str) -> list[dict]:
+    if not config.BRAVE_API_KEY:
         return []
     try:
-        pages = await notion_client.search_pages(config.NOTION_TOKEN, query, page_size=MAX_DOCS)
-        docs: list[dict] = []
-        for page in pages:
-            content = await notion_client.fetch_page_content(
-                config.NOTION_TOKEN, page["id"], max_chars=MAX_CONTENT_CHARS
-            )
-            docs.append({
-                "source": f"Notion: {page['title']}",
-                "url": page["url"],
-                "content": content or page["title"],
-            })
-        return docs
-    except Exception as exc:
-        logger.warning("Notion 검색 실패: %s", exc)
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                _BRAVE_URL,
+                headers={
+                    "Accept": "application/json",
+                    "Accept-Encoding": "gzip",
+                    "X-Subscription-Token": config.BRAVE_API_KEY,
+                },
+                params={"q": query, "count": MAX_DOCS},
+                timeout=aiohttp.ClientTimeout(total=8),
+            ) as resp,
+        ):
+            if resp.status != 200:
+                logger.warning("Brave Search 비-200: %s", resp.status)
+                return []
+            data = await resp.json()
+    except aiohttp.ClientError as exc:
+        logger.warning("Brave Search 실패: %s", exc)
         return []
+
+    docs = []
+    for result in data.get("web", {}).get("results", [])[:MAX_DOCS]:
+        docs.append({
+            "source": result.get("title", ""),
+            "url": result.get("url", ""),
+            "content": result.get("description", "")[:MAX_CONTENT_CHARS],
+        })
+    return docs
 
 
 def _file_docs(query: str) -> list[dict]:
@@ -58,11 +74,11 @@ def _file_docs(query: str) -> list[dict]:
 
 
 async def retrieve_context(query: str) -> str:
-    """쿼리 관련 외부 문서를 검색하고 컨텍스트 블록 문자열 반환. 결과 없으면 빈 문자열."""
+    """웹 검색 결과 + 로컬 문서를 합쳐 Claude 프롬프트용 컨텍스트 블록 반환."""
     docs: list[dict] = []
 
-    notion_docs = await _notion_docs(query)
-    docs.extend(notion_docs)
+    web_docs = await _web_search_docs(query)
+    docs.extend(web_docs)
 
     if len(docs) < MAX_DOCS:
         file_docs = _file_docs(query)
