@@ -36,6 +36,7 @@ SYSTEM_PROMPT = """당신은 DevOps/IaC 자동화 어시스턴트입니다.
 1. 추측 금지 — 도구로 사실 확인 후 응답.
 2. 코드 변경이 필요하면 prompts/output/ 에 권고 문서를 작성하고, 사용자가 수동 적용하도록 안내.
 3. 간결하게 — 핵심만 보고, 불필요한 메타 설명 생략.
+4. [참고 문서] 블록이 제공된 경우 해당 내용을 최우선 근거로 삼아 신뢰성 있게 답변.
 
 특수 task prefix:
 - "[STACK_TASK]" 로 시작하는 description 은 IT 트렌드 페이지 생성 워크플로.
@@ -84,8 +85,13 @@ async def _run_with_tools(task_id: str, prompt: str) -> str:
     if not config.CLAUDE_API_KEY:
         return "(Claude API 키 미설정 — .env 의 CLAUDE_API_KEY 추가 필요)"
 
+    from app.rag import retrieve_context
+
+    context = await retrieve_context(prompt)
+    augmented = f"{prompt}\n\n{context}\n\n위 참고 문서를 기반으로 답변하세요." if context else prompt
+
     client = anthropic.AsyncAnthropic(api_key=config.CLAUDE_API_KEY)
-    messages: list[dict] = [{"role": "user", "content": prompt}]
+    messages: list[dict] = [{"role": "user", "content": augmented}]
     start = time.monotonic()
 
     for iteration in range(MAX_ITERATIONS):
