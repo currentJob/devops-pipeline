@@ -115,6 +115,32 @@ async def search_pages(token: str, query: str, page_size: int = 10) -> list[dict
         return [_extract_page_meta(p) for p in results]
 
 
+async def fetch_page_content(token: str, page_id: str, max_chars: int = 1500) -> str:
+    """페이지 블록에서 순수 텍스트 내용 추출 (RAG 컨텍스트용)."""
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(
+            f"{NOTION_API}/blocks/{page_id}/children",
+            headers=_headers(token),
+            params={"page_size": 50},
+            timeout=aiohttp.ClientTimeout(total=TIMEOUT_S),
+        ) as resp,
+    ):
+        if resp.status != 200:
+            return ""
+        data = await resp.json()
+
+    parts: list[str] = []
+    for block in data.get("results", []):
+        btype = block.get("type", "")
+        bdata = block.get(btype, {})
+        rich = bdata.get("rich_text", [])
+        text = "".join(r.get("plain_text", "") for r in rich)
+        if text:
+            parts.append(text)
+    return "\n".join(parts)[:max_chars]
+
+
 # ── 마크다운 → Notion blocks (간이 파서) ─────────────────────────────────────
 
 
