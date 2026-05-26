@@ -1,3 +1,7 @@
+networks:
+  pipeline-net:
+    driver: bridge
+
 services:
   bot:
     build:
@@ -11,9 +15,11 @@ services:
       - "127.0.0.1:8765:8765"
     volumes:
       - ./logs:/app/logs
+    networks:
+      - pipeline-net
     depends_on:
       worker:
-        condition: service_started
+        condition: service_healthy
     # 네트워크 연결만 허용, 불필요한 권한 제거
     security_opt:
       - no-new-privileges:true
@@ -43,6 +49,8 @@ services:
       # 권한 그룹 B: 프로젝트 전체는 읽기 전용으로 노출, prompts/output 만 RW
       - ./:/workspace:ro
       - ./prompts/output:/workspace/prompts/output:rw
+    networks:
+      - pipeline-net
     security_opt:
       - no-new-privileges:true
     read_only: true
