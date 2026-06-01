@@ -46,11 +46,13 @@ async def _web_search_docs(query: str) -> list[dict]:
 
     docs = []
     for result in data.get("web", {}).get("results", [])[:MAX_DOCS]:
-        docs.append({
-            "source": result.get("title", ""),
-            "url": result.get("url", ""),
-            "content": result.get("description", "")[:MAX_CONTENT_CHARS],
-        })
+        docs.append(
+            {
+                "source": result.get("title", ""),
+                "url": result.get("url", ""),
+                "content": result.get("description", "")[:MAX_CONTENT_CHARS],
+            }
+        )
     return docs
 
 

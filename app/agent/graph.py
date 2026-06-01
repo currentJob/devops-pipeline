@@ -7,6 +7,7 @@ Gateway(Router) 가 작업 유형을 분석하여 전문 에이전트로 분기:
   Planner 는 별도 StateGraph 로 run_task 를 반복 호출:
   START → [plan] → [execute loop] → END
 """
+
 from __future__ import annotations
 
 import datetime
@@ -33,31 +34,36 @@ logger = logging.getLogger(__name__)
 
 # ── 라우트 정의 ───────────────────────────────────────────────────────────────
 
+
 class Route(StrEnum):
-    CODE    = "code"
-    DOC     = "doc"
-    INFRA   = "infra"
-    STACK   = "stack"
+    CODE = "code"
+    DOC = "doc"
+    INFRA = "infra"
+    STACK = "stack"
     GENERAL = "general"
+
 
 # Telegram 봇 커맨드(/code, /doc …)가 삽입하는 prefix → 결정론적 라우팅
 _PREFIX_MAP: dict[str, Route] = {
-    "[CODE_TASK]":  Route.CODE,
-    "[DOC_TASK]":   Route.DOC,
+    "[CODE_TASK]": Route.CODE,
+    "[DOC_TASK]": Route.DOC,
     "[INFRA_TASK]": Route.INFRA,
     "[STACK_TASK]": Route.STACK,
 }
 
 # ── 멀티 에이전트 상태 ────────────────────────────────────────────────────────
 
+
 class _AgentState(TypedDict):
-    task_id:     str
-    description: str   # 라우터가 prefix 제거 후 업데이트
-    rag_context: str   # retrieve 노드가 채움
-    route:       str   # 라우터가 채움
-    result:      str   # 전문 에이전트가 채움
+    task_id: str
+    description: str  # 라우터가 prefix 제거 후 업데이트
+    rag_context: str  # retrieve 노드가 채움
+    route: str  # 라우터가 채움
+    result: str  # 전문 에이전트가 채움
+
 
 # ── 알림 & 콜백 ──────────────────────────────────────────────────────────────
+
 
 async def _notify(text: str) -> None:
     """봇 /notify 엔드포인트로 중간 이벤트 전송 (실패해도 작업 계속)."""
@@ -74,6 +80,7 @@ async def _notify(text: str) -> None:
                 logger.warning("중간 알림 비-200: %s", resp.status)
     except aiohttp.ClientError as e:
         logger.warning("중간 알림 실패: %s", e)
+
 
 class _ToolNotifyHandler(AsyncCallbackHandler):
     """ReAct 루프에서 도구 호출 시 Telegram 알림."""
@@ -98,13 +105,15 @@ class _ToolNotifyHandler(AsyncCallbackHandler):
 
 # ── LLM 팩토리 ───────────────────────────────────────────────────────────────
 
+
 def _make_llm() -> BaseChatModel:
     """vLLM 엔드포인트가 설정된 경우 우선 사용, 없으면 Claude API."""
     if config.VLLM_ENDPOINT:
         from langchain_openai import ChatOpenAI
+
         return ChatOpenAI(
             base_url=f"{config.VLLM_ENDPOINT}/v1",
-            api_key="token-placeholder",   # vLLM은 기본적으로 인증 불필요
+            api_key="token-placeholder",  # vLLM은 기본적으로 인증 불필요
             model=config.VLLM_MODEL,
             max_tokens=config.WORKER_MAX_TOKENS,
             timeout=config.WORKER_TIMEOUT_S,
@@ -161,10 +170,13 @@ def _dated(prompt: str) -> str:
 
 # 라우트별 (프롬프트, 도구) 매핑
 _AGENT_CONFIG: dict[str, dict] = {
-    Route.CODE:    {"prompt": _CODE_PROMPT,    "tools": [bash, read_file, write_file]},
-    Route.DOC:     {"prompt": _DOC_PROMPT,     "tools": [read_file, write_file, notion_search, notion_create_page]},
-    Route.INFRA:   {"prompt": _INFRA_PROMPT,   "tools": [bash, read_file, write_file]},
-    Route.STACK:   {"prompt": _STACK_PROMPT,   "tools": [notion_search, notion_create_page]},
+    Route.CODE: {"prompt": _CODE_PROMPT, "tools": [bash, read_file, write_file]},
+    Route.DOC: {
+        "prompt": _DOC_PROMPT,
+        "tools": [read_file, write_file, notion_search, notion_create_page],
+    },
+    Route.INFRA: {"prompt": _INFRA_PROMPT, "tools": [bash, read_file, write_file]},
+    Route.STACK: {"prompt": _STACK_PROMPT, "tools": [notion_search, notion_create_page]},
     Route.GENERAL: {"prompt": _GENERAL_PROMPT, "tools": TOOLS},
 }
 
@@ -195,6 +207,7 @@ async def _run_react(task_id: str, description: str, rag_context: str, route: st
 
 # ── 게이트웨이 그래프 노드 ────────────────────────────────────────────────────
 
+
 async def _retrieve_node(state: _AgentState) -> _AgentState:
     """RAG 웹 검색으로 컨텍스트 수집."""
     ctx = await retrieve_context(state["description"])
@@ -211,23 +224,27 @@ async def _router_node(state: _AgentState) -> _AgentState:
     # 1. Prefix 결정론적 분기
     for prefix, route in _PREFIX_MAP.items():
         if description.startswith(prefix):
-            cleaned = description[len(prefix):].strip()
+            cleaned = description[len(prefix) :].strip()
             logger.info("게이트웨이 prefix 분기 → %s (task_id=%s)", route.value, state["task_id"])
             await _notify(f"🔀 *게이트웨이* → `{route.value}` 에이전트 (id=`{state['task_id']}`)")
             return {**state, "description": cleaned, "route": route.value}
 
     # 2. LLM 분류 (자유형)
-    resp = await _make_llm().ainvoke([
-        SystemMessage(content=(
-            "작업을 가장 적합한 카테고리 하나로 분류하세요. 카테고리 이름만 응답.\n"
-            "- code : 코드 분석·버그·리팩토링·보안\n"
-            "- doc  : 문서·README·API 문서·가이드\n"
-            "- infra: Docker·CI/CD·인프라·배포\n"
-            "- stack: IT 트렌드·기술 스택·Notion 저장\n"
-            "- general: 위 카테고리 외 일반 작업"
-        )),
-        HumanMessage(content=description[:500]),
-    ])
+    resp = await _make_llm().ainvoke(
+        [
+            SystemMessage(
+                content=(
+                    "작업을 가장 적합한 카테고리 하나로 분류하세요. 카테고리 이름만 응답.\n"
+                    "- code : 코드 분석·버그·리팩토링·보안\n"
+                    "- doc  : 문서·README·API 문서·가이드\n"
+                    "- infra: Docker·CI/CD·인프라·배포\n"
+                    "- stack: IT 트렌드·기술 스택·Notion 저장\n"
+                    "- general: 위 카테고리 외 일반 작업"
+                )
+            ),
+            HumanMessage(content=description[:500]),
+        ]
+    )
     route_str = resp.content.strip().lower().split()[0]
     valid = {r.value for r in Route}
     route = route_str if route_str in valid else Route.GENERAL.value
@@ -243,21 +260,24 @@ def _dispatch(state: _AgentState) -> str:
 
 def _make_agent_node(route: str):
     """라우트별 에이전트 노드 팩토리."""
+
     async def _node(state: _AgentState) -> _AgentState:
         result = await _run_react(
             state["task_id"], state["description"], state["rag_context"], route
         )
         return {**state, "result": result}
+
     _node.__name__ = f"_{route}_node"
     return _node
 
 
 # ── 멀티 에이전트 게이트웨이 그래프 빌드 ────────────────────────────────────
 
+
 def _build_gateway_graph():
     g = StateGraph(_AgentState)
     g.add_node("retrieve", _retrieve_node)
-    g.add_node("router",   _router_node)
+    g.add_node("router", _router_node)
 
     route_map: dict[str, str] = {}
     for route in Route:
@@ -276,26 +296,31 @@ _gateway = _build_gateway_graph()
 
 # ── Planner StateGraph ────────────────────────────────────────────────────────
 
+
 class _PlanState(TypedDict):
-    task_id:       str
-    description:   str
-    sub_tasks:     list[str]
+    task_id: str
+    description: str
+    sub_tasks: list[str]
     current_index: int
-    results:       list[str]
+    results: list[str]
 
 
 async def _plan_node(state: _PlanState) -> _PlanState:
     """복합 작업을 JSON 으로 하위 작업 목록으로 분해."""
     today = datetime.date.today().strftime("%Y-%m-%d")
-    resp = await _make_llm().ainvoke([
-        SystemMessage(content=(
-            "작업 분해 전문가입니다. 복합 작업을 독립 실행 가능한 하위 작업으로 분해하세요.\n"
-            f"오늘 날짜: {today}.\n"
-            "반드시 JSON만 응답: {\"tasks\": [\"하위 작업1\", \"하위 작업2\"]}\n"
-            "최대 5개. 각 하위 작업은 독립적으로 실행 가능해야 함."
-        )),
-        HumanMessage(content=state["description"]),
-    ])
+    resp = await _make_llm().ainvoke(
+        [
+            SystemMessage(
+                content=(
+                    "작업 분해 전문가입니다. 복합 작업을 독립 실행 가능한 하위 작업으로 분해하세요.\n"
+                    f"오늘 날짜: {today}.\n"
+                    '반드시 JSON만 응답: {"tasks": ["하위 작업1", "하위 작업2"]}\n'
+                    "최대 5개. 각 하위 작업은 독립적으로 실행 가능해야 함."
+                )
+            ),
+            HumanMessage(content=state["description"]),
+        ]
+    )
     try:
         sub_tasks: list[str] = json.loads(resp.content).get("tasks", [])
         if not sub_tasks:
@@ -305,16 +330,14 @@ async def _plan_node(state: _PlanState) -> _PlanState:
         sub_tasks = [state["description"]]
 
     logger.info("플래너 분해 task_id=%s sub_tasks=%d개", state["task_id"], len(sub_tasks))
-    await _notify(
-        f"📋 *플래너* (id=`{state['task_id']}`)\n{len(sub_tasks)}개 하위 작업으로 분해"
-    )
+    await _notify(f"📋 *플래너* (id=`{state['task_id']}`)\n{len(sub_tasks)}개 하위 작업으로 분해")
     return {**state, "sub_tasks": sub_tasks, "current_index": 0, "results": []}
 
 
 async def _execute_node(state: _PlanState) -> _PlanState:
     """현재 하위 작업을 게이트웨이(자동 라우팅)로 실행."""
-    idx   = state["current_index"]
-    sub   = state["sub_tasks"][idx]
+    idx = state["current_index"]
+    sub = state["sub_tasks"][idx]
     total = len(state["sub_tasks"])
     sub_id = f"{state['task_id']}-{idx + 1}"
 
@@ -323,7 +346,7 @@ async def _execute_node(state: _PlanState) -> _PlanState:
 
     # 게이트웨이를 통해 자동 라우팅 → 최적 에이전트 선택
     result = await run_task(sub_id, sub)
-    entry  = f"**[{idx + 1}/{total}] {sub[:60]}**\n{result}"
+    entry = f"**[{idx + 1}/{total}] {sub[:60]}**\n{result}"
     return {**state, "current_index": idx + 1, "results": state["results"] + [entry]}
 
 
@@ -333,10 +356,10 @@ def _should_continue(state: _PlanState) -> str:
 
 def _build_plan_graph():
     g = StateGraph(_PlanState)
-    g.add_node("plan",    _plan_node)
+    g.add_node("plan", _plan_node)
     g.add_node("execute", _execute_node)
     g.add_edge(START, "plan")
-    g.add_edge("plan",    "execute")
+    g.add_edge("plan", "execute")
     g.add_conditional_edges("execute", _should_continue, {"execute": "execute", END: END})
     return g.compile()
 
@@ -346,17 +369,20 @@ _plan_graph = _build_plan_graph()
 
 # ── 공개 API ─────────────────────────────────────────────────────────────────
 
+
 async def run_task(task_id: str, description: str) -> str:
     """게이트웨이를 통해 최적 전문 에이전트로 자동 라우팅."""
     if not config.CLAUDE_API_KEY:
         return "(Claude API 키 미설정 — .env 의 CLAUDE_API_KEY 추가 필요)"
-    state = await _gateway.ainvoke({
-        "task_id":     task_id,
-        "description": description,
-        "rag_context": "",
-        "route":       "",
-        "result":      "",
-    })
+    state = await _gateway.ainvoke(
+        {
+            "task_id": task_id,
+            "description": description,
+            "rag_context": "",
+            "route": "",
+            "result": "",
+        }
+    )
     return state["result"]
 
 
@@ -364,11 +390,13 @@ async def run_plan_task(task_id: str, description: str) -> str:
     """복합 작업을 하위 작업으로 분해 후 게이트웨이로 순차 실행."""
     if not config.CLAUDE_API_KEY:
         return "(Claude API 키 미설정)"
-    state = await _plan_graph.ainvoke({
-        "task_id":       task_id,
-        "description":   description,
-        "sub_tasks":     [],
-        "current_index": 0,
-        "results":       [],
-    })
+    state = await _plan_graph.ainvoke(
+        {
+            "task_id": task_id,
+            "description": description,
+            "sub_tasks": [],
+            "current_index": 0,
+            "results": [],
+        }
+    )
     return "\n\n---\n\n".join(state["results"]) or "(결과 없음)"

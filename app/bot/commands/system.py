@@ -92,8 +92,7 @@ async def cmd_model(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
     if not _authorized(update):
         return
     await update.message.reply_text(
-        f"🤖 *현재 사용 모델*\n\n"
-        f"`{config.WORKER_MODEL}`",
+        f"🤖 *현재 사용 모델*\n\n`{config.WORKER_MODEL}`",
         parse_mode="Markdown",
     )
 

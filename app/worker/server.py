@@ -44,7 +44,7 @@ class _Job:
 
 
 _queue: asyncio.Queue[_Job] = asyncio.Queue(maxsize=0)  # main() 에서 실제 크기로 교체
-_semaphore: asyncio.Semaphore = asyncio.Semaphore(1)    # main() 에서 실제 값으로 교체
+_semaphore: asyncio.Semaphore = asyncio.Semaphore(1)  # main() 에서 실제 값으로 교체
 
 
 async def _report_result(task_id: str, result: str) -> None:
@@ -59,7 +59,9 @@ async def _report_result(task_id: str, result: str) -> None:
                     body = await resp.text()
                     logger.warning(
                         "결과 전송 비-200 task_id=%s status=%s body=%s",
-                        task_id, resp.status, body,
+                        task_id,
+                        resp.status,
+                        body,
                     )
         except aiohttp.ClientError as e:
             logger.error("결과 전송 실패 task_id=%s: %s", task_id, e)
@@ -75,7 +77,7 @@ async def _process_task(job: _Job) -> None:
 
     # [PLAN_TASK]: 분해 후 순차 실행
     if description.startswith("[PLAN_TASK]"):
-        cleaned = description[len("[PLAN_TASK]"):].strip()
+        cleaned = description[len("[PLAN_TASK]") :].strip()
         try:
             result = await plan_and_run(task_id, cleaned)
         except Exception as e:
