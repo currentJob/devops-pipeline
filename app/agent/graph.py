@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import time
 from enum import StrEnum
 from typing import Any
 from uuid import UUID
@@ -106,9 +107,40 @@ class _ToolNotifyHandler(AsyncCallbackHandler):
 # ── LLM 팩토리 ───────────────────────────────────────────────────────────────
 
 
-def _make_llm() -> BaseChatModel:
-    """vLLM 엔드포인트가 설정된 경우 우선 사용, 없으면 Claude API."""
-    if config.VLLM_ENDPOINT:
+_VLLM_HEALTH_TTL_S = 30.0
+_vllm_health_cache: tuple[float, bool] | None = None  # (checked_at, healthy)
+
+
+async def _vllm_available() -> bool:
+    """vLLM /health 프로브. 결과를 짧게 캐시하고, 미설정/응답불가면 False."""
+    if not config.VLLM_ENDPOINT:
+        return False
+
+    global _vllm_health_cache
+    now = time.monotonic()
+    if _vllm_health_cache and now - _vllm_health_cache[0] < _VLLM_HEALTH_TTL_S:
+        return _vllm_health_cache[1]
+
+    healthy = False
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                f"{config.VLLM_ENDPOINT}/health",
+                timeout=aiohttp.ClientTimeout(total=2),
+            ) as resp,
+        ):
+            healthy = resp.status == 200
+    except (aiohttp.ClientError, TimeoutError) as e:
+        logger.warning("vLLM 헬스체크 실패 → Claude API 폴백: %s", e)
+
+    _vllm_health_cache = (now, healthy)
+    return healthy
+
+
+async def _make_llm() -> BaseChatModel:
+    """vLLM 서버가 응답하면 vLLM, 아니면 Claude API 로 폴백."""
+    if await _vllm_available():
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(
@@ -190,7 +222,7 @@ async def _run_react(task_id: str, description: str, rag_context: str, route: st
         else description
     )
     agent = create_react_agent(
-        _make_llm(),
+        await _make_llm(),
         cfg["tools"],
         prompt=SystemMessage(content=_dated(cfg["prompt"])),
     )
@@ -230,7 +262,8 @@ async def _router_node(state: _AgentState) -> _AgentState:
             return {**state, "description": cleaned, "route": route.value}
 
     # 2. LLM 분류 (자유형)
-    resp = await _make_llm().ainvoke(
+    llm = await _make_llm()
+    resp = await llm.ainvoke(
         [
             SystemMessage(
                 content=(
@@ -308,7 +341,8 @@ class _PlanState(TypedDict):
 async def _plan_node(state: _PlanState) -> _PlanState:
     """복합 작업을 JSON 으로 하위 작업 목록으로 분해."""
     today = datetime.date.today().strftime("%Y-%m-%d")
-    resp = await _make_llm().ainvoke(
+    llm = await _make_llm()
+    resp = await llm.ainvoke(
         [
             SystemMessage(
                 content=(
@@ -372,8 +406,8 @@ _plan_graph = _build_plan_graph()
 
 async def run_task(task_id: str, description: str) -> str:
     """게이트웨이를 통해 최적 전문 에이전트로 자동 라우팅."""
-    if not config.CLAUDE_API_KEY:
-        return "(Claude API 키 미설정 — .env 의 CLAUDE_API_KEY 추가 필요)"
+    if not config.CLAUDE_API_KEY and not config.VLLM_ENDPOINT:
+        return "(LLM 백엔드 미설정 — .env 의 CLAUDE_API_KEY 또는 VLLM_ENDPOINT 추가 필요)"
     state = await _gateway.ainvoke(
         {
             "task_id": task_id,
@@ -388,8 +422,8 @@ async def run_task(task_id: str, description: str) -> str:
 
 async def run_plan_task(task_id: str, description: str) -> str:
     """복합 작업을 하위 작업으로 분해 후 게이트웨이로 순차 실행."""
-    if not config.CLAUDE_API_KEY:
-        return "(Claude API 키 미설정)"
+    if not config.CLAUDE_API_KEY and not config.VLLM_ENDPOINT:
+        return "(LLM 백엔드 미설정 — CLAUDE_API_KEY 또는 VLLM_ENDPOINT 필요)"
     state = await _plan_graph.ainvoke(
         {
             "task_id": task_id,
