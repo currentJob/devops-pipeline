@@ -8,6 +8,7 @@ from app.tools.filesystem import write_file as _write_file
 from app.tools.notion import _notion_create_page, _notion_search
 from app.tools.shell import bash as _bash
 
+
 @tool
 def read_file(path: str) -> str:
     """프로젝트 워크스페이스 파일 읽기. 경로는 루트 기준 상대 경로 (예: 'app/main.py'). 1MB 초과 거부."""

@@ -28,10 +28,7 @@ BASH_ALLOWLIST: tuple[str, ...] = (
 
 def _is_allowed_command(command: str) -> bool:
     cmd = command.strip()
-    for prefix in BASH_ALLOWLIST:
-        if cmd == prefix or cmd.startswith(prefix + " "):
-            return True
-    return False
+    return any(cmd == prefix or cmd.startswith(prefix + " ") for prefix in BASH_ALLOWLIST)
 
 
 async def bash(command: str) -> str:

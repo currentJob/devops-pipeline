@@ -4,9 +4,9 @@ import inspect
 import logging
 from collections.abc import Callable
 
-from app.tools.filesystem import MAX_FILE_BYTES, WORKSPACE, WRITE_PREFIX, read_file, write_file
+from app.tools.filesystem import read_file, write_file
 from app.tools.notion import _notion_create_page, _notion_search
-from app.tools.shell import BASH_ALLOWLIST, BASH_TIMEOUT_S, SHELL_METAS, bash
+from app.tools.shell import bash
 
 logger = logging.getLogger(__name__)
 

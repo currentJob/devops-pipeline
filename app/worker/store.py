@@ -8,9 +8,9 @@ from __future__ import annotations
 import datetime
 import os
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from collections.abc import Generator
 
 _DB_PATH = Path(os.environ.get("DATA_DIR", "data")) / "tasks.db"
 
