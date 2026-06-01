@@ -57,3 +57,26 @@ These guidelines are working if: fewer unnecessary changes in diffs, fewer rewri
 5. Language
 All reasoning and judgment are done in English internally.
 All responses are written in Korean.
+
+6. Scope Clarification (MANDATORY)
+Never start implementation without confirming scope on ambiguous tasks.
+
+Before starting any task that involves 3+ files, architectural decisions, new dependencies, or unclear requirements:
+- Ask at least one clarifying question.
+- Do not silently pick an interpretation — present options.
+- After 3 failed attempts on the same approach, stop and ask.
+
+7. Plan Mode
+Use Plan Mode (Shift+Tab in IDE) before implementing complex changes.
+
+Triggers that require a plan:
+- Modifying 3+ files simultaneously
+- Adding a new dependency or replacing an existing one
+- Changing a public API or data contract
+- Any database schema change
+
+8. Extended Guidelines
+Detailed rules live in .claude/rules/ — they extend but do not override the principles above:
+- boundaries.md  — what to do autonomously vs. ask first vs. never
+- git-workflow.md — commit conventions for this project
+- security.md     — pre-commit security checklist

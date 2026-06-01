@@ -22,7 +22,10 @@ htmlcov/
 .coverage
 
 prompts/output/
-.claude
+
+# Claude Code — 머신별 로컬 설정만 제외
+.claude/settings.local.json
+.claude/memory/
 
 # SQLite 작업 이력 DB (컨테이너 볼륨)
 data/*.db
