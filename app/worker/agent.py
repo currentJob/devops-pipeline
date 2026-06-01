@@ -1,137 +1,19 @@
-"""Claude tool-use 루프 에이전트.
+"""Worker agent — app.agent.graph 의 얇은 래퍼.
 
-작업 설명을 받아 Claude 와 tool-use 루프를 돌며 처리.
-도구 실행은 app.tools 를 통해 위임.
+server.py 가 기대하는 _notify / _run_with_tools / plan_and_run 인터페이스를 유지.
+실제 AI 로직은 app/agent/graph.py (LangGraph) 에서 처리.
 """
-
 from __future__ import annotations
 
-import datetime
-import logging
-import time
-
-import aiohttp
-import anthropic
-
-from app import config, tools
-
-logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = """당신은 DevOps/IaC 자동화 어시스턴트입니다.
-
-사용 가능한 도구:
-- read_file(path): 프로젝트 파일 읽기 (전체 워크스페이스 읽기 가능)
-- write_file(path, content): prompts/output/ 하위에만 쓰기 가능
-- bash(command): 허용된 명령만 (ls, cat, git status/diff/log, uv run pytest/ruff/pip-audit, docker compose ps/logs)
-- notion_search(query, limit): Notion 워크스페이스 페이지 검색
-- notion_create_page(title, content, icon): NOTION_PARENT_PAGE_ID 하위에 새 페이지 생성
-
-원칙:
-1. 추측 금지 — 도구로 사실 확인 후 응답.
-2. 코드 변경이 필요하면 prompts/output/ 에 권고 문서를 작성하고, 사용자가 수동 적용하도록 안내.
-3. 간결하게 — 핵심만 보고, 불필요한 메타 설명 생략.
-4. [참고 문서] 블록이 제공된 경우 해당 내용을 최우선 근거로 삼아 신뢰성 있게 답변.
-
-특수 task prefix:
-- "[STACK_TASK]" 로 시작하는 description 은 IT 트렌드 페이지 생성 워크플로.
-  반드시 task 본문의 절차를 그대로 따르고, 마지막에는 생성된 Notion 페이지 URL 만 응답.
-"""
-
-
-async def _notify(text: str) -> None:
-    """봇 /notify 로 중간 이벤트 알림 전송 (실패해도 작업 계속)."""
-    try:
-        async with (
-            aiohttp.ClientSession() as session,
-            session.post(
-                config.WORKER_BOT_NOTIFY_URL,
-                json={"text": text},
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as resp,
-        ):
-            if resp.status != 200:
-                logger.warning("중간 알림 비-200: %s", resp.status)
-    except aiohttp.ClientError as e:
-        logger.warning("중간 알림 실패: %s", e)
-
-
-def _format_tool_call(name: str, args: dict) -> str:
-    if name == "bash":
-        return f"`{args.get('command', '')}`"
-    if name in ("read_file", "write_file"):
-        return f"`{args.get('path', '')}`"
-    if name == "notion_search":
-        return f"query: `{args.get('query', '')}`"
-    if name == "notion_create_page":
-        return f"title: `{args.get('title', '')}`"
-    return str(args)[:120]
-
-
-def _extract_text(content_blocks) -> str:
-    parts = []
-    for block in content_blocks:
-        if block.type == "text":
-            parts.append(block.text)
-    return "\n".join(parts).strip()
+from app.agent.graph import _notify, run_plan_task, run_task
 
 
 async def _run_with_tools(task_id: str, prompt: str) -> str:
-    if not config.CLAUDE_API_KEY:
-        return "(Claude API 키 미설정 — .env 의 CLAUDE_API_KEY 추가 필요)"
+    return await run_task(task_id, prompt)
 
-    from app.rag import retrieve_context
 
-    context = await retrieve_context(prompt)
-    augmented = f"{prompt}\n\n{context}\n\n위 참고 문서를 기반으로 답변하세요." if context else prompt
+async def plan_and_run(task_id: str, description: str) -> str:
+    return await run_plan_task(task_id, description)
 
-    today = datetime.date.today().strftime("%Y-%m-%d")
-    system = f"{SYSTEM_PROMPT}\n\n오늘 날짜: {today}. 날짜 관련 판단·트렌드 분석은 반드시 이 날짜를 기준으로 할 것."
 
-    client = anthropic.AsyncAnthropic(api_key=config.CLAUDE_API_KEY)
-    messages: list[dict] = [{"role": "user", "content": augmented}]
-    start = time.monotonic()
-
-    for iteration in range(config.WORKER_MAX_ITERATIONS):
-        elapsed = time.monotonic() - start
-        if elapsed > config.WORKER_TIMEOUT_S:
-            return f"(타임아웃: {elapsed:.1f}s > {config.WORKER_TIMEOUT_S}s)"
-
-        try:
-            response = await client.messages.create(
-                model=config.WORKER_MODEL,
-                max_tokens=config.WORKER_MAX_TOKENS,
-                system=system,
-                tools=tools.TOOLS_SCHEMA,
-                messages=messages,
-            )
-        except anthropic.APIError as e:
-            logger.warning("Claude API 오류 iteration=%d: %s", iteration, e)
-            return f"(Claude API 오류: {e})"
-
-        if response.stop_reason == "end_turn":
-            return _extract_text(response.content) or "(빈 응답)"
-
-        if response.stop_reason == "tool_use":
-            messages.append({"role": "assistant", "content": response.content})
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    logger.info("도구 호출 iter=%d name=%s", iteration, block.name)
-                    detail = _format_tool_call(block.name, block.input)
-                    await _notify(
-                        f"🔧 *{block.name}* (id=`{task_id}`, step {iteration + 1})\n{detail}"
-                    )
-                    result = await tools.execute(block.name, block.input)
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": result,
-                        }
-                    )
-            messages.append({"role": "user", "content": tool_results})
-            continue
-
-        return f"(예상하지 못한 stop_reason: {response.stop_reason})"
-
-    return f"(최대 반복 횟수 {config.WORKER_MAX_ITERATIONS}회 초과)"
+__all__ = ["_notify", "_run_with_tools", "plan_and_run"]

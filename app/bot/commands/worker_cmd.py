@@ -1,5 +1,6 @@
 import datetime
 
+import aiohttp
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -22,6 +23,99 @@ async def cmd_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     await _dispatch_to_worker(update, description, upload_to_notion=True)
+
+
+async def cmd_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/code <설명>` — 코드 품질 분석 전문 워커."""
+    if not _authorized(update):
+        return
+    description = " ".join(context.args).strip()
+    if not description:
+        await update.message.reply_text(
+            "사용법: `/code <분석 요청>`\n예: `/code app/worker/agent.py 보안 취약점 점검`",
+            parse_mode="Markdown",
+        )
+        return
+    await _dispatch_to_worker(update, f"[CODE_TASK] {description}")
+
+
+async def cmd_doc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/doc <설명>` — 기술 문서 작성 전문 워커."""
+    if not _authorized(update):
+        return
+    description = " ".join(context.args).strip()
+    if not description:
+        await update.message.reply_text(
+            "사용법: `/doc <문서화 요청>`\n예: `/doc worker/agent.py README 작성`",
+            parse_mode="Markdown",
+        )
+        return
+    await _dispatch_to_worker(update, f"[DOC_TASK] {description}", upload_to_notion=True)
+
+
+async def cmd_infra(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/infra <설명>` — 인프라/DevOps 전문 워커."""
+    if not _authorized(update):
+        return
+    description = " ".join(context.args).strip()
+    if not description:
+        await update.message.reply_text(
+            "사용법: `/infra <분석 요청>`\n예: `/infra docker-compose.yml 보안 설정 점검`",
+            parse_mode="Markdown",
+        )
+        return
+    await _dispatch_to_worker(update, f"[INFRA_TASK] {description}")
+
+
+async def cmd_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/plan <설명>` — 복합 작업 분해 후 순차 실행 (Planner Agent)."""
+    if not _authorized(update):
+        return
+    description = " ".join(context.args).strip()
+    if not description:
+        await update.message.reply_text(
+            "사용법: `/plan <복합 작업 설명>`\n예: `/plan 코드 리뷰 후 개선 사항 문서화하고 Notion에 저장`",
+            parse_mode="Markdown",
+        )
+        return
+    await _dispatch_to_worker(update, f"[PLAN_TASK] {description}", upload_to_notion=True)
+
+
+async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/history` — 최근 작업 이력 조회."""
+    if not _authorized(update):
+        return
+
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                config.WORKER_TASKS_URL,
+                params={"limit": "5"},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp,
+        ):
+            if resp.status != 200:
+                await update.message.reply_text(f"⚠️ 이력 조회 실패 (HTTP {resp.status})")
+                return
+            tasks = await resp.json()
+    except aiohttp.ClientError as e:
+        await update.message.reply_text(f"🔴 워커 연결 실패: {e}")
+        return
+
+    if not tasks:
+        await update.message.reply_text("📋 작업 이력 없음")
+        return
+
+    _STATUS_ICON = {"done": "✅", "failed": "🔴", "running": "⚙️", "pending": "⏳"}
+    lines = ["📋 *최근 작업 이력*\n"]
+    for t in tasks:
+        icon = _STATUS_ICON.get(t["status"], "❓")
+        ts = (t.get("completed_at") or t.get("created_at") or "")[:16]
+        desc = t["description"][:55].replace("_", "\\_").replace("[", "\\[")
+        lines.append(f"{icon} `{t['task_id']}` _{ts}_\n  {desc}")
+
+    await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")
 
 
 async def cmd_lint(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:

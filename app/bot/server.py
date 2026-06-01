@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 HOST = "0.0.0.0"  # 컨테이너 내부 — 외부 노출은 docker-compose 포트 매핑이 제어
 PORT = 8765
 
-
 def _make_handler(bot_app: Application):
     async def handle(request: web.Request) -> web.Response:
         try:

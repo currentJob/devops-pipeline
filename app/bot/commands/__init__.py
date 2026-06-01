@@ -80,12 +80,24 @@ def register_commands(app: Application) -> None:
 
     # 지연 import: 순환 참조 방지 (submodule 들이 이 __init__ 을 import 하므로)
     from app.bot.commands.pipeline_cmd import cmd_run
-    from app.bot.commands.system import cmd_health, cmd_help, cmd_model, cmd_start, cmd_status, cmd_uptime
+    from app.bot.commands.system import (
+        cmd_health,
+        cmd_help,
+        cmd_model,
+        cmd_start,
+        cmd_status,
+        cmd_uptime,
+    )
     from app.bot.commands.worker_cmd import (
         cmd_audit,
+        cmd_code,
         cmd_diff,
+        cmd_doc,
+        cmd_history,
+        cmd_infra,
         cmd_lint,
         cmd_notion,
+        cmd_plan,
         cmd_stack,
         cmd_task,
         cmd_test,
@@ -96,6 +108,11 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("run", cmd_run))
     app.add_handler(CommandHandler("task", cmd_task))
+    app.add_handler(CommandHandler("plan", cmd_plan))
+    app.add_handler(CommandHandler("code", cmd_code))
+    app.add_handler(CommandHandler("doc", cmd_doc))
+    app.add_handler(CommandHandler("infra", cmd_infra))
+    app.add_handler(CommandHandler("history", cmd_history))
     app.add_handler(CommandHandler("uptime", cmd_uptime))
     app.add_handler(CommandHandler("health", cmd_health))
     app.add_handler(CommandHandler("model", cmd_model))
