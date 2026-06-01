@@ -1,0 +1,23 @@
+# 레지스트리(GHCR) 이미지로 bot/worker 구동 — 로컬 소스 빌드 없이 다른 PC에서 실행.
+#
+# 기본 docker-compose.yml 의 bot/worker 는 로컬 빌드(build:)를 쓴다.
+# 이 override 를 함께 적용하면 빌드 대신 GHCR 에 발행된 이미지를 pull 해서 띄운다.
+#
+# 사용 (모니터링 포함):
+#   docker login ghcr.io
+#   docker compose -f docker-compose.yml -f docker-compose.registry.yml --profile monitoring pull
+#   docker compose -f docker-compose.yml -f docker-compose.registry.yml --profile monitoring up -d
+#
+# APP_IMAGE 로 이미지 경로/태그 변경 가능 (기본: ghcr.io/currentjob/devops-pipeline:latest)
+# build: !reset 는 Compose v2.24.4+ 필요.
+
+services:
+  bot:
+    build: !reset null
+    image: ${APP_IMAGE:-ghcr.io/currentjob/devops-pipeline:latest}
+    pull_policy: always
+
+  worker:
+    build: !reset null
+    image: ${APP_IMAGE:-ghcr.io/currentjob/devops-pipeline:latest}
+    pull_policy: always

@@ -89,6 +89,36 @@ uv run python -m app.main
 uv run python -m app.worker
 ```
 
+### 4. 다른 PC에서 레지스트리 이미지로 실행
+
+소스 빌드 없이, CI 가 GHCR 에 발행한 이미지를 받아 띄웁니다. (이미지는 main push 시
+CI 의 `registry-push` job 이 발행 — 최초 실행 전에는 존재하지 않습니다.)
+
+준비물: 이 저장소 클론(compose·모니터링 설정·`.env` 가 필요), Docker, GHCR 접근 권한.
+
+```bash
+# 1) 저장소 클론 후 .env 작성
+git clone https://github.com/currentJob/devops-pipeline.git
+cd devops-pipeline
+cp .env.example .env   # TELEGRAM_TOKEN 등 실제 값 입력
+
+# 2) GHCR 로그인 (이미지가 private 이므로 read:packages 권한 PAT 필요)
+echo $CR_PAT | docker login ghcr.io -u <github-username> --password-stdin
+
+# 3) 레지스트리 이미지로 구동 (bot + worker + 모니터링)
+docker compose -f docker-compose.yml -f docker-compose.registry.yml --profile monitoring pull
+docker compose -f docker-compose.yml -f docker-compose.registry.yml --profile monitoring up -d
+```
+
+| 항목 | 값 |
+|------|-----|
+| Bot | http://localhost:8765 (내부) |
+| Grafana | http://localhost:3000 (admin / `GRAFANA_ADMIN_PASSWORD`) |
+| Prometheus | http://localhost:9090 |
+
+> 다른 org/태그 이미지를 쓰려면 `.env` 의 `APP_IMAGE` 를 변경합니다.
+> `build: !reset` 문법은 Docker Compose v2.24.4 이상에서 동작합니다.
+
 ## Telegram 명령어
 
 | 명령어 | 설명 |
