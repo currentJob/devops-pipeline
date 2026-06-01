@@ -1,0 +1,64 @@
+# 이미지: ghcr.io/YOUR_ORG/devops-pipeline:TAG
+# kubectl set image deployment/bot bot=ghcr.io/ORG/devops-pipeline:TAG -n devops-pipeline
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bot
+  namespace: devops-pipeline
+  labels:
+    app: bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bot
+  template:
+    metadata:
+      labels:
+        app: bot
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bot
+          image: ghcr.io/YOUR_ORG/devops-pipeline:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8765
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import app.config"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 8765
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: devops-pipeline
+spec:
+  selector:
+    app: worker
+  ports:
+    - port: 8766
+      targetPort: 8766
+  type: ClusterIP

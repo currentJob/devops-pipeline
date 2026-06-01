@@ -1,0 +1,106 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '배포 대상 환경'
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: '배포할 이미지 태그 (기본: main)'
+        required: false
+        default: main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  K8S_NAMESPACE: devops-pipeline
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false   # 배포는 취소하지 않음
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify cluster connection
+        run: kubectl cluster-info
+
+      - name: Set image tag
+        id: tag
+        run: |
+          TAG=${{ inputs.image_tag }}
+          echo "app_image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}" >> $GITHUB_OUTPUT
+          echo "vllm_image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-vllm:${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Apply namespace & config
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+
+      - name: Deploy bot
+        run: |
+          kubectl set image deployment/bot \
+            bot=${{ steps.tag.outputs.app_image }} \
+            -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/bot \
+            -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+
+      - name: Deploy worker
+        run: |
+          kubectl apply -f k8s/worker/pvc.yaml
+          kubectl set image deployment/worker \
+            worker=${{ steps.tag.outputs.app_image }} \
+            -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/worker \
+            -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+
+      - name: Deploy vLLM (GPU 노드 존재 시)
+        run: |
+          if kubectl get nodes -l nvidia.com/gpu.present=true --no-headers 2>/dev/null | grep -q .; then
+            kubectl apply -f k8s/vllm/pvc.yaml
+            kubectl set image deployment/vllm \
+              vllm=${{ steps.tag.outputs.vllm_image }} \
+              -n ${{ env.K8S_NAMESPACE }}
+            kubectl rollout status deployment/vllm \
+              -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+          else
+            echo "GPU 노드 없음 — vLLM 배포 건너뜀"
+          fi
+
+      - name: Notify Telegram on success
+        if: success()
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d parse_mode="Markdown" \
+            -d text="✅ *배포 완료* (${{ inputs.environment }})\n이미지: \`${{ inputs.image_tag }}\`\n환경: \`${{ env.K8S_NAMESPACE }}\`"
+
+      - name: Notify Telegram on failure
+        if: failure()
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d parse_mode="Markdown" \
+            -d text="🔴 *배포 실패* (${{ inputs.environment }})\n이미지: \`${{ inputs.image_tag }}\`\n[워크플로우 확인](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"

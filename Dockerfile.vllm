@@ -1,0 +1,18 @@
+# vLLM 서빙 컨테이너
+# 기반: vllm/vllm-openai (CUDA 지원 포함)
+# 빌드: docker build -f Dockerfile.vllm -t devops-pipeline-vllm .
+# 실행: docker run --gpus all -p 8000:8000 devops-pipeline-vllm \
+#         --model Qwen/Qwen2.5-Coder-7B-Instruct
+FROM vllm/vllm-openai:latest
+
+# 기본 서빙 모델 (환경변수로 오버라이드 가능)
+ENV VLLM_MODEL="Qwen/Qwen2.5-Coder-7B-Instruct"
+ENV VLLM_MAX_MODEL_LEN=4096
+
+# Prometheus 메트릭 활성화
+ENV VLLM_PROMETHEUS_ENABLED=1
+
+EXPOSE 8000
+
+ENTRYPOINT ["python", "-m", "vllm.entrypoints.openai.api_server"]
+CMD ["--model", "Qwen/Qwen2.5-Coder-7B-Instruct", "--port", "8000", "--enable-prefix-caching"]

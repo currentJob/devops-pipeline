@@ -34,3 +34,6 @@ WORKER_HEALTH_URL: str = os.environ.get("WORKER_HEALTH_URL", "http://worker:8766
 WORKER_TASKS_URL: str = os.environ.get("WORKER_TASKS_URL", "http://worker:8766/tasks")
 WORKER_MAX_CONCURRENT: int = int(os.environ.get("WORKER_MAX_CONCURRENT", "3"))
 WORKER_QUEUE_SIZE: int = int(os.environ.get("WORKER_QUEUE_SIZE", "50"))
+# vLLM (선택) — 설정 시 Claude API 대신 로컬 vLLM 사용
+VLLM_ENDPOINT: str = os.environ.get("VLLM_ENDPOINT", "")
+VLLM_MODEL: str = os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")

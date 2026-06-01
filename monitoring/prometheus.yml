@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: devops-pipeline
+
+scrape_configs:
+  # vLLM OpenAI-compatible server metrics
+  - job_name: vllm
+    static_configs:
+      - targets: ["vllm:8000"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # Worker service (향후 /metrics 엔드포인트 추가 시 활성화)
+  - job_name: worker
+    static_configs:
+      - targets: ["worker:8766"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

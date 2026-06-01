@@ -19,6 +19,7 @@ from uuid import UUID
 import aiohttp
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks.base import AsyncCallbackHandler
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import create_react_agent
@@ -97,7 +98,17 @@ class _ToolNotifyHandler(AsyncCallbackHandler):
 
 # ── LLM 팩토리 ───────────────────────────────────────────────────────────────
 
-def _make_llm() -> ChatAnthropic:
+def _make_llm() -> BaseChatModel:
+    """vLLM 엔드포인트가 설정된 경우 우선 사용, 없으면 Claude API."""
+    if config.VLLM_ENDPOINT:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            base_url=f"{config.VLLM_ENDPOINT}/v1",
+            api_key="token-placeholder",   # vLLM은 기본적으로 인증 불필요
+            model=config.VLLM_MODEL,
+            max_tokens=config.WORKER_MAX_TOKENS,
+            timeout=config.WORKER_TIMEOUT_S,
+        )
     return ChatAnthropic(
         model=config.WORKER_MODEL,
         api_key=config.CLAUDE_API_KEY,

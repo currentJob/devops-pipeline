@@ -12,6 +12,7 @@ dependencies = [
     "aiohttp>=3.13.5",
     "langchain-anthropic>=0.3.0",
     "langchain-core>=0.3.0",
+    "langchain-openai>=0.3.0",
     "langgraph>=0.3.0",
 ]
 
