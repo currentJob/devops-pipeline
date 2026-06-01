@@ -59,7 +59,7 @@ def test_read_file_traversal_rejected():
 
 def test_read_file_size_limit(tmp_path):
     huge = tmp_path / "huge.bin"
-    huge.write_bytes(b"x" * (tools.MAX_FILE_BYTES + 1))
+    huge.write_bytes(b"x" * (filesystem.MAX_FILE_BYTES + 1))
     result = tools.read_file("huge.bin")
     assert "너무 큼" in result
 
@@ -93,7 +93,7 @@ def test_write_file_rejects_traversal():
 
 
 def test_write_file_size_limit():
-    huge = "x" * (tools.MAX_FILE_BYTES + 1)
+    huge = "x" * (filesystem.MAX_FILE_BYTES + 1)
     result = tools.write_file("prompts/output/big.txt", huge)
     assert "너무 큼" in result
 
