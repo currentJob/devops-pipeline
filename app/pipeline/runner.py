@@ -1,13 +1,18 @@
+import asyncio
+import datetime
 import logging
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 
+import aiohttp
 import anthropic
 from telegram.ext import Application
 
 from app import config
 from app.bot import notifier
+from app.notion import client as notion_client
+from app.pipeline import security_audit
 
 logger = logging.getLogger(__name__)
 
@@ -56,37 +61,56 @@ def analyze_with_claude(prompt: str) -> str:
 
 
 async def step_collect(app: Application) -> PipelineResult:
-    """1단계: 데이터 수집 (실제 구현에서는 API 호출, DB 조회 등으로 교체)"""
-    logger.info("[1단계] 데이터 수집 시작")
+    """1단계: 설치 의존성 인벤토리 수집 + OSV 취약점 스캔."""
+    logger.info("[1단계] 의존성 보안 감사 — 패키지 수집 시작")
 
-    data = {"items": 150, "total_amount": 2_350_000, "currency": "KRW"}
+    packages = security_audit.list_installed_packages()
+    await notifier.send_message(
+        app, f"📥 *1단계*: 설치 패키지 {len(packages)}개 수집 — OSV 취약점 스캔 중..."
+    )
 
-    await notifier.send_message(app, "📥 *1단계 완료*: 데이터 수집 완료\n항목 수: 150개")
-    logger.info("[1단계] 완료: %s", data)
-    return PipelineResult(step="collect", status=StepStatus.APPROVED, data=data)
+    try:
+        audit = await security_audit.scan(packages)
+    except aiohttp.ClientError as e:
+        logger.warning("OSV 스캔 실패: %s", e)
+        await notifier.send_message(app, f"🔴 *1단계 실패*: OSV 스캔 오류 — {e}")
+        return PipelineResult(step="collect", status=StepStatus.REJECTED, data={})
+
+    await notifier.send_message(
+        app,
+        f"📥 *1단계 완료*: {audit['scanned']}개 중 "
+        f"*{audit['vulnerable_count']}개* 취약 패키지 발견",
+    )
+    logger.info(
+        "[1단계] 완료: scanned=%d vulnerable=%d", audit["scanned"], audit["vulnerable_count"]
+    )
+    return PipelineResult(step="collect", status=StepStatus.APPROVED, data=audit)
 
 
-async def step_analyze(app: Application, collected: dict) -> PipelineResult:
-    """2단계: Claude로 데이터 분석 후 사용자 승인 요청"""
-    logger.info("[2단계] 분석 시작")
+async def step_analyze(app: Application, audit: dict) -> PipelineResult:
+    """2단계: Claude로 취약점 우선순위·교정안 분석 후 사용자 승인 요청."""
+    logger.info("[2단계] 취약점 분석 시작")
 
-    from app.rag import retrieve_context
-
-    context = await retrieve_context(str(collected))
-    prompt = f"다음 수집 데이터를 분석하고 처리 진행 여부를 판단해주세요:\n{collected}"
-    if context:
-        prompt += f"\n\n{context}\n\n위 참고 문서를 기반으로 신뢰성 있는 분석을 제공하세요."
-    summary = analyze_with_claude(prompt)
+    findings = security_audit.build_findings_text(audit)
+    prompt = (
+        "다음은 의존성 취약점 스캔(OSV) 결과입니다. DevSecOps 관점에서 간결한 한국어 "
+        "마크다운으로 정리하세요:\n"
+        "1) 심각도순 우선순위 (CVSS 기준)\n"
+        "2) 각 취약점의 권장 조치 (업그레이드 대상 버전)\n"
+        "3) 업그레이드 시 호환성 리스크 간단 평가\n\n"
+        f"{findings}"
+    )
+    # Claude 호출은 블로킹이므로 별도 스레드에서 실행 (봇 이벤트 루프 보호)
+    summary = await asyncio.to_thread(analyze_with_claude, prompt)
 
     approved = await notifier.request_approval(
         app=app,
         task_id=str(uuid.uuid4()),
         message=(
-            f"📊 *2단계 - 분석 결과 검토*\n\n"
-            f"항목 수: {collected['items']}개\n"
-            f"총 금액: ₩{collected['total_amount']:,}\n\n"
-            f"*AI 분석:*\n{summary}\n\n"
-            f"다음 단계(처리 실행)를 진행할까요?"
+            f"🛡️ *2단계 — 보안 감사 결과 검토*\n\n"
+            f"취약 패키지: *{audit['vulnerable_count']}*개 / 스캔 {audit['scanned']}개\n\n"
+            f"*AI 분석:*\n{summary[:2500]}\n\n"
+            f"교정 리포트를 생성하고 저장할까요?"
         ),
     )
 
@@ -95,38 +119,67 @@ async def step_analyze(app: Application, collected: dict) -> PipelineResult:
     return PipelineResult(step="analyze", status=status, data={"summary": summary})
 
 
-async def step_execute(app: Application, analysis: dict) -> PipelineResult:
-    """3단계: 실제 처리 실행 (실제 구현에서는 외부 API, DB 업데이트 등으로 교체)"""
-    logger.info("[3단계] 실행 시작")
+async def step_execute(app: Application, audit: dict, analysis: dict) -> PipelineResult:
+    """3단계: 교정 리포트 생성 → 파일 저장 + (설정 시) Notion 업로드."""
+    logger.info("[3단계] 교정 리포트 생성")
 
-    result = {"processed": True, "message": "작업 완료"}
+    report = security_audit.build_report_markdown(audit, analysis["summary"])
+    saved_path = security_audit.save_report(report)
 
-    await notifier.send_message(app, "✅ *3단계 완료*: 모든 처리가 완료되었습니다.")
-    logger.info("[3단계] 완료: %s", result)
-    return PipelineResult(step="execute", status=StepStatus.APPROVED, data=result)
+    notion_url: str | None = None
+    if config.NOTION_TOKEN and config.NOTION_PARENT_PAGE_ID:
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        res = await notion_client.create_page(
+            config.NOTION_TOKEN,
+            config.NOTION_PARENT_PAGE_ID,
+            f"의존성 보안 감사 — {today}",
+            report,
+            "🛡️",
+        )
+        notion_url = res.get("url")
+        if res.get("error"):
+            logger.warning("Notion 업로드 실패: %s", res["error"])
+
+    msg = f"✅ *3단계 완료*: 교정 리포트 생성\n📄 `{saved_path}`"
+    if notion_url:
+        msg += f"\n📝 Notion: {notion_url}"
+    await notifier.send_message(app, msg)
+    logger.info("[3단계] 완료: path=%s notion=%s", saved_path, notion_url)
+    return PipelineResult(
+        step="execute",
+        status=StepStatus.APPROVED,
+        data={"report_path": saved_path, "notion_url": notion_url},
+    )
 
 
 async def run(app: Application) -> list[PipelineResult]:
-    """전체 파이프라인 실행. 각 단계 결과를 리스트로 반환."""
+    """전체 파이프라인 실행 (의존성 보안 감사). 각 단계 결과를 리스트로 반환."""
     results: list[PipelineResult] = []
 
-    await notifier.send_message(app, "🚀 *자동화 파이프라인 시작*")
+    await notifier.send_message(app, "🚀 *의존성 보안 감사 파이프라인 시작*")
     logger.info("파이프라인 시작")
 
     r1 = await step_collect(app)
     results.append(r1)
-
-    r2 = await step_analyze(app, r1.data)
-    results.append(r2)
-
-    if r2.status == StepStatus.REJECTED:
-        await notifier.send_message(app, "🛑 *파이프라인 중단*: 사용자가 거절했습니다.")
-        logger.info("파이프라인 중단 - 사용자 거절")
+    if r1.status == StepStatus.REJECTED:  # 스캔 실패
         return results
 
-    r3 = await step_execute(app, r2.data)
+    audit = r1.data
+    if audit.get("vulnerable_count", 0) == 0:
+        await notifier.send_message(app, "✅ *취약점 0건* — 모든 의존성이 안전합니다.")
+        logger.info("파이프라인 종료 - 취약점 없음")
+        return results
+
+    r2 = await step_analyze(app, audit)
+    results.append(r2)
+    if r2.status == StepStatus.REJECTED:
+        await notifier.send_message(app, "🛑 *파이프라인 중단*: 교정을 보류했습니다.")
+        logger.info("파이프라인 중단 - 사용자 보류")
+        return results
+
+    r3 = await step_execute(app, audit, r2.data)
     results.append(r3)
 
-    await notifier.send_message(app, "🎉 *파이프라인 완료*: 모든 단계가 성공적으로 완료되었습니다.")
+    await notifier.send_message(app, "🎉 *파이프라인 완료*: 교정 리포트가 생성되었습니다.")
     logger.info("파이프라인 완료")
     return results
