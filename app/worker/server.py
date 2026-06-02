@@ -27,7 +27,7 @@ import aiohttp
 from aiohttp import web
 
 from app import config
-from app.worker import store
+from app.worker import metrics, store
 from app.worker.agent import _notify, _run_with_tools, plan_and_run
 
 logger = logging.getLogger(__name__)
@@ -71,41 +71,45 @@ async def _process_task(job: _Job) -> None:
     task_id, description, upload_to_notion = job.task_id, job.description, job.upload_to_notion
     logger.info("작업 시작 task_id=%s desc=%r", task_id, description[:80])
 
-    store.set_running(task_id)
-    short_desc = description[:200] + ("…" if len(description) > 200 else "")
-    await _notify(f"⚙️ *작업 처리 시작* (id=`{task_id}`)\n{short_desc}")
+    # 처리 시간 + 동시 처리 수 계측 (예외/조기반환에도 게이지 복구)
+    with metrics.INFLIGHT.track_inprogress(), metrics.TASK_DURATION.time():
+        store.set_running(task_id)
+        short_desc = description[:200] + ("…" if len(description) > 200 else "")
+        await _notify(f"⚙️ *작업 처리 시작* (id=`{task_id}`)\n{short_desc}")
 
-    # [PLAN_TASK]: 분해 후 순차 실행
-    if description.startswith("[PLAN_TASK]"):
-        cleaned = description[len("[PLAN_TASK]") :].strip()
-        try:
-            result = await plan_and_run(task_id, cleaned)
-        except Exception as e:
-            logger.exception("플래너 오류 task_id=%s", task_id)
-            result = f"(플래너 오류: {type(e).__name__}: {e})"
-    else:
-        if upload_to_notion and config.NOTION_TOKEN and config.NOTION_PARENT_PAGE_ID:
-            description = (
-                description
-                + "\n\n[NOTION_SAVE] 작업 완료 후 notion_create_page 도구로 결과를 저장하라. "
-                "title은 작업 요약(60자 이내), icon='📋'. 저장 완료 후 페이지 URL을 응답에 포함."
-            )
-        try:
-            result = await _run_with_tools(task_id, description)
-        except Exception as e:
-            logger.exception("작업 처리 중 예외 task_id=%s", task_id)
-            result = f"(내부 오류: {type(e).__name__}: {e})"
+        # [PLAN_TASK]: 분해 후 순차 실행
+        if description.startswith("[PLAN_TASK]"):
+            cleaned = description[len("[PLAN_TASK]") :].strip()
+            try:
+                result = await plan_and_run(task_id, cleaned)
+            except Exception as e:
+                logger.exception("플래너 오류 task_id=%s", task_id)
+                result = f"(플래너 오류: {type(e).__name__}: {e})"
+        else:
+            if upload_to_notion and config.NOTION_TOKEN and config.NOTION_PARENT_PAGE_ID:
+                description = (
+                    description
+                    + "\n\n[NOTION_SAVE] 작업 완료 후 notion_create_page 도구로 결과를 저장하라. "
+                    "title은 작업 요약(60자 이내), icon='📋'. 저장 완료 후 페이지 URL을 응답에 포함."
+                )
+            try:
+                result = await _run_with_tools(task_id, description)
+            except Exception as e:
+                logger.exception("작업 처리 중 예외 task_id=%s", task_id)
+                result = f"(내부 오류: {type(e).__name__}: {e})"
 
-    failed = result.startswith("(") and result.endswith(")")
-    store.set_done(task_id, result, failed=failed)
-    await _report_result(task_id, result)
-    logger.info("작업 완료 task_id=%s", task_id)
+        failed = result.startswith("(") and result.endswith(")")
+        store.set_done(task_id, result, failed=failed)
+        metrics.TASKS_TOTAL.labels(status="failed" if failed else "done").inc()
+        await _report_result(task_id, result)
+        logger.info("작업 완료 task_id=%s", task_id)
 
 
 async def _worker_loop() -> None:
     """큐에서 작업을 꺼내 세마포어로 동시성을 제어하며 실행."""
     while True:
         job = await _queue.get()
+        metrics.QUEUE_SIZE.set(_queue.qsize())
         asyncio.create_task(_run_with_semaphore(job))
         _queue.task_done()
 
@@ -134,6 +138,7 @@ async def _handle_run(request: web.Request) -> web.Response:
         return web.Response(status=429, text="큐 가득 참 — 잠시 후 재시도")
 
     store.create(task_id, description)
+    metrics.QUEUE_SIZE.set(_queue.qsize())
     logger.info("작업 큐 등록 task_id=%s", task_id)
     return web.Response(status=202, text=task_id)
 
@@ -171,6 +176,7 @@ async def main() -> None:
     app.router.add_post("/run", _handle_run)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
+    app.router.add_get("/metrics", metrics.handle_metrics)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, WORKER_HOST, WORKER_PORT)
