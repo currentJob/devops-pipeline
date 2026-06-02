@@ -219,7 +219,8 @@ _STACK_PROMPT = """당신은 IT 트렌드 리서치 전문 에이전트입니다
 
 - notion_search 로 기존 페이지를 확인하여 중복 방지
 - 현재 시점 기술 트렌드를 선정하고 채택률·성숙도 포함하여 마크다운 작성
-- notion_create_page 호출 후 생성된 URL 만 응답."""
+- notion_create_page 는 **정확히 한 번만** 호출하라. 성공 응답(JSON 에 "url" 포함)을 받으면
+  즉시 그 URL 만 응답하고, 추가 도구 호출을 절대 하지 마라 (중복 페이지 생성 금지)."""
 
 _GENERAL_PROMPT = """당신은 DevOps/IaC 자동화 어시스턴트입니다.
 도구: read_file, write_file, bash, notion_search, notion_create_page
