@@ -249,9 +249,16 @@ async def _run_react(task_id: str, description: str, rag_context: str, route: st
 # ── 게이트웨이 그래프 노드 ────────────────────────────────────────────────────
 
 
+# 도구형 작업(로컬 파일/명령 분석)은 웹 검색이 노이즈·토큰 낭비라 RAG 생략
+_NO_RAG_PREFIXES = ("[CODE_TASK]", "[INFRA_TASK]")
+
+
 async def _retrieve_node(state: _AgentState) -> _AgentState:
-    """RAG 웹 검색으로 컨텍스트 수집."""
-    ctx = await retrieve_context(state["description"])
+    """RAG 웹 검색으로 컨텍스트 수집. 코드/인프라 도구 작업은 생략해 입력 절감."""
+    description = state["description"]
+    if description.startswith(_NO_RAG_PREFIXES):
+        return {**state, "rag_context": ""}
+    ctx = await retrieve_context(description)
     return {**state, "rag_context": ctx}
 
 
