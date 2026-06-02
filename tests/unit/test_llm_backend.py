@@ -52,3 +52,20 @@ async def test_probe_result_is_cached(monkeypatch):
 
     monkeypatch.setattr(graph.aiohttp, "ClientSession", _boom)
     assert await graph._vllm_available() is True
+
+
+def test_vllm_max_tokens_capped_to_half_context(monkeypatch):
+    # 출력이 컨텍스트를 넘지 않도록 절반으로 캡
+    monkeypatch.setattr(config, "WORKER_MAX_TOKENS", 8192)
+    monkeypatch.setattr(config, "VLLM_MAX_MODEL_LEN", 8192)
+    assert graph._vllm_max_tokens() == 4096
+
+    monkeypatch.setattr(config, "VLLM_MAX_MODEL_LEN", 4096)
+    assert graph._vllm_max_tokens() == 2048
+
+
+def test_vllm_max_tokens_respects_lower_worker_limit(monkeypatch):
+    # WORKER_MAX_TOKENS 가 더 작으면 그 값을 따름
+    monkeypatch.setattr(config, "WORKER_MAX_TOKENS", 1024)
+    monkeypatch.setattr(config, "VLLM_MAX_MODEL_LEN", 8192)
+    assert graph._vllm_max_tokens() == 1024

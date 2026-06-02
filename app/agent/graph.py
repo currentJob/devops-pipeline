@@ -138,6 +138,15 @@ async def _vllm_available() -> bool:
     return healthy
 
 
+def _vllm_max_tokens() -> int:
+    """vLLM 출력 토큰 상한 — 컨텍스트(max-model-len)의 절반으로 캡해 입력 공간 확보.
+
+    출력+입력이 컨텍스트를 넘으면 vLLM 이 400 을 낸다. WORKER_MAX_TOKENS(=Claude용 8192)를
+    vLLM 에 그대로 쓰면 작은 컨텍스트에서 초과하므로, 컨텍스트 절반으로 제한한다.
+    """
+    return min(config.WORKER_MAX_TOKENS, max(256, config.VLLM_MAX_MODEL_LEN // 2))
+
+
 async def _make_llm() -> BaseChatModel:
     """vLLM 서버가 응답하면 vLLM, 아니면 Claude API 로 폴백."""
     if await _vllm_available():
@@ -147,7 +156,7 @@ async def _make_llm() -> BaseChatModel:
             base_url=f"{config.VLLM_ENDPOINT}/v1",
             api_key="token-placeholder",  # vLLM은 기본적으로 인증 불필요
             model=config.VLLM_MODEL,
-            max_tokens=config.WORKER_MAX_TOKENS,
+            max_tokens=_vllm_max_tokens(),
             timeout=config.WORKER_TIMEOUT_S,
         )
     return ChatAnthropic(

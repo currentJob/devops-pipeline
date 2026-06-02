@@ -37,3 +37,5 @@ WORKER_QUEUE_SIZE: int = int(os.environ.get("WORKER_QUEUE_SIZE", "50"))
 # vLLM (선택) — 설정 시 Claude API 대신 로컬 vLLM 사용
 VLLM_ENDPOINT: str = os.environ.get("VLLM_ENDPOINT", "")
 VLLM_MODEL: str = os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
+# vLLM 총 컨텍스트 길이(입력+출력). docker-compose 의 --max-model-len 과 일치시킬 것
+VLLM_MAX_MODEL_LEN: int = int(os.environ.get("VLLM_MAX_MODEL_LEN", "4096"))
