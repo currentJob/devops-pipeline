@@ -39,3 +39,6 @@ VLLM_ENDPOINT: str = os.environ.get("VLLM_ENDPOINT", "")
 VLLM_MODEL: str = os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
 # vLLM 총 컨텍스트 길이(입력+출력). docker-compose 의 --max-model-len 과 일치시킬 것
 VLLM_MAX_MODEL_LEN: int = int(os.environ.get("VLLM_MAX_MODEL_LEN", "4096"))
+# 라우트별 백엔드 분기 — 여기 나열된 라우트만 vLLM, 나머지는 Claude (쉼표 구분)
+VLLM_ROUTES: str = os.environ.get("VLLM_ROUTES", "general")
+VLLM_ROUTES_SET: frozenset[str] = frozenset(r.strip() for r in VLLM_ROUTES.split(",") if r.strip())

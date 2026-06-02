@@ -147,24 +147,48 @@ def _vllm_max_tokens() -> int:
     return min(config.WORKER_MAX_TOKENS, max(256, config.VLLM_MAX_MODEL_LEN // 2))
 
 
-async def _make_llm() -> BaseChatModel:
-    """vLLM 서버가 응답하면 vLLM, 아니면 Claude API 로 폴백."""
-    if await _vllm_available():
-        from langchain_openai import ChatOpenAI
+def _vllm_llm() -> BaseChatModel:
+    from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
-            base_url=f"{config.VLLM_ENDPOINT}/v1",
-            api_key="token-placeholder",  # vLLM은 기본적으로 인증 불필요
-            model=config.VLLM_MODEL,
-            max_tokens=_vllm_max_tokens(),
-            timeout=config.WORKER_TIMEOUT_S,
-        )
+    return ChatOpenAI(
+        base_url=f"{config.VLLM_ENDPOINT}/v1",
+        api_key="token-placeholder",  # vLLM은 기본적으로 인증 불필요
+        model=config.VLLM_MODEL,
+        max_tokens=_vllm_max_tokens(),
+        timeout=config.WORKER_TIMEOUT_S,
+    )
+
+
+def _claude_llm() -> BaseChatModel:
     return ChatAnthropic(
         model=config.WORKER_MODEL,
         api_key=config.CLAUDE_API_KEY,
         max_tokens=config.WORKER_MAX_TOKENS,
         timeout=config.WORKER_TIMEOUT_S,
     )
+
+
+def _route_backend_label(route: str | None) -> str:
+    """라우트에 매핑된 선호 백엔드 표시용 ('vLLM' | 'Claude')."""
+    return "vLLM" if (route in config.VLLM_ROUTES_SET and config.VLLM_ENDPOINT) else "Claude"
+
+
+async def _make_llm(route: str | None = None) -> BaseChatModel:
+    """라우트별 백엔드 선택 + 가용성 폴백.
+
+    VLLM_ROUTES 에 속한 라우트는 vLLM(가용 시), 그 외는 Claude.
+    선호 백엔드가 불가하면 다른 쪽으로 폴백한다.
+    """
+    if route in config.VLLM_ROUTES_SET and await _vllm_available():
+        logger.info("백엔드 선택 route=%s → vLLM", route)
+        return _vllm_llm()
+    if config.CLAUDE_API_KEY:
+        logger.info("백엔드 선택 route=%s → Claude", route)
+        return _claude_llm()
+    if await _vllm_available():  # Claude 키 없음 — vLLM 으로라도
+        logger.info("백엔드 선택 route=%s → vLLM (Claude 키 없음)", route)
+        return _vllm_llm()
+    return _claude_llm()
 
 
 # ── 에이전트별 시스템 프롬프트 + 도구 셋 ─────────────────────────────────────
@@ -231,7 +255,7 @@ async def _run_react(task_id: str, description: str, rag_context: str, route: st
         else description
     )
     agent = create_react_agent(
-        await _make_llm(),
+        await _make_llm(route),
         cfg["tools"],
         prompt=SystemMessage(content=_dated(cfg["prompt"])),
     )
@@ -274,7 +298,10 @@ async def _router_node(state: _AgentState) -> _AgentState:
         if description.startswith(prefix):
             cleaned = description[len(prefix) :].strip()
             logger.info("게이트웨이 prefix 분기 → %s (task_id=%s)", route.value, state["task_id"])
-            await _notify(f"🔀 *게이트웨이* → `{route.value}` 에이전트 (id=`{state['task_id']}`)")
+            await _notify(
+                f"🔀 *게이트웨이* → `{route.value}` 에이전트 "
+                f"[{_route_backend_label(route.value)}] (id=`{state['task_id']}`)"
+            )
             return {**state, "description": cleaned, "route": route.value}
 
     # 2. LLM 분류 (자유형)
@@ -299,7 +326,10 @@ async def _router_node(state: _AgentState) -> _AgentState:
     route = route_str if route_str in valid else Route.GENERAL.value
 
     logger.info("게이트웨이 LLM 분류 → %s (task_id=%s)", route, state["task_id"])
-    await _notify(f"🔀 *게이트웨이* → `{route}` 에이전트 (id=`{state['task_id']}`)")
+    await _notify(
+        f"🔀 *게이트웨이* → `{route}` 에이전트 "
+        f"[{_route_backend_label(route)}] (id=`{state['task_id']}`)"
+    )
     return {**state, "route": route}
 
 
