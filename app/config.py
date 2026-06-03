@@ -34,6 +34,16 @@ WORKER_HEALTH_URL: str = os.environ.get("WORKER_HEALTH_URL", "http://worker:8766
 WORKER_TASKS_URL: str = os.environ.get("WORKER_TASKS_URL", "http://worker:8766/tasks")
 WORKER_MAX_CONCURRENT: int = int(os.environ.get("WORKER_MAX_CONCURRENT", "3"))
 WORKER_QUEUE_SIZE: int = int(os.environ.get("WORKER_QUEUE_SIZE", "50"))
+# 새 작업 시 참조할 직전 작업 요약본 개수 (0 = 비활성)
+WORKER_MEMORY_COUNT: int = int(os.environ.get("WORKER_MEMORY_COUNT", "3"))
+# 작업 이력 DB 백엔드 (sqlite | postgres). 기본 sqlite — 추가 인프라 불필요
+DB_BACKEND: str = os.environ.get("DB_BACKEND", "sqlite").lower()
+# DB_BACKEND=postgres 일 때 사용 (docker compose --profile postgres)
+POSTGRES_HOST: str = os.environ.get("POSTGRES_HOST", "postgres")
+POSTGRES_PORT: int = int(os.environ.get("POSTGRES_PORT", "5432"))
+POSTGRES_DB: str = os.environ.get("POSTGRES_DB", "tasks")
+POSTGRES_USER: str = os.environ.get("POSTGRES_USER", "pipeline")
+POSTGRES_PASSWORD: str = os.environ.get("POSTGRES_PASSWORD", "")
 # vLLM (선택) — 설정 시 Claude API 대신 로컬 vLLM 사용
 VLLM_ENDPOINT: str = os.environ.get("VLLM_ENDPOINT", "")
 VLLM_MODEL: str = os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")

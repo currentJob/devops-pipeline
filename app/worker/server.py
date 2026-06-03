@@ -28,7 +28,7 @@ from aiohttp import web
 
 from app import config
 from app.worker import metrics, store
-from app.worker.agent import _notify, _run_with_tools, plan_and_run
+from app.worker.agent import _notify, _run_with_tools, plan_and_run, summarize_task
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ async def _process_task(job: _Job) -> None:
 
     # 처리 시간 + 동시 처리 수 계측 (예외/조기반환에도 게이지 복구)
     with metrics.INFLIGHT.track_inprogress(), metrics.TASK_DURATION.time():
-        store.set_running(task_id)
+        await store.set_running(task_id)
         short_desc = description[:200] + ("…" if len(description) > 200 else "")
         await _notify(f"⚙️ *작업 처리 시작* (id=`{task_id}`)\n{short_desc}")
 
@@ -99,10 +99,22 @@ async def _process_task(job: _Job) -> None:
                 result = f"(내부 오류: {type(e).__name__}: {e})"
 
         failed = result.startswith("(") and result.endswith(")")
-        store.set_done(task_id, result, failed=failed)
+        await store.set_done(task_id, result, failed=failed)
         metrics.TASKS_TOTAL.labels(status="failed" if failed else "done").inc()
         await _report_result(task_id, result)
         logger.info("작업 완료 task_id=%s", task_id)
+
+    # 다음 작업이 참조할 요약본 저장 (계측 구간 밖, 실패해도 무시)
+    await _store_summary(task_id, job.description, result, failed)
+
+
+async def _store_summary(task_id: str, description: str, result: str, failed: bool) -> None:
+    """완료 작업의 요약을 저장. 실패 작업은 LLM 호출 없이 결과 앞부분만."""
+    try:
+        summary = result[:200] if failed else await summarize_task(description, result)
+        await store.set_summary(task_id, summary)
+    except Exception as e:
+        logger.warning("작업 요약 저장 실패 task_id=%s: %s", task_id, e)
 
 
 async def _worker_loop() -> None:
@@ -137,7 +149,7 @@ async def _handle_run(request: web.Request) -> web.Response:
     except asyncio.QueueFull:
         return web.Response(status=429, text="큐 가득 참 — 잠시 후 재시도")
 
-    store.create(task_id, description)
+    await store.create(task_id, description)
     metrics.QUEUE_SIZE.set(_queue.qsize())
     logger.info("작업 큐 등록 task_id=%s", task_id)
     return web.Response(status=202, text=task_id)
@@ -148,7 +160,7 @@ async def _handle_tasks(request: web.Request) -> web.Response:
         limit = int(request.rel_url.query.get("limit", "10"))
     except ValueError:
         limit = 10
-    tasks = store.get_recent(min(limit, 50))
+    tasks = await store.get_recent(min(limit, 50))
     return web.Response(
         status=200,
         content_type="application/json",
@@ -168,7 +180,7 @@ async def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    store.init()
+    await store.init()
     _queue = asyncio.Queue(maxsize=config.WORKER_QUEUE_SIZE)
     _semaphore = asyncio.Semaphore(config.WORKER_MAX_CONCURRENT)
 

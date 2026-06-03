@@ -1,80 +1,182 @@
-"""작업 이력 저장소 — SQLite 기반, 추가 인프라 불필요.
+"""작업 이력 저장소 — SQLAlchemy Core 비동기 엔진 기반.
 
-DATA_DIR 환경변수로 경로 지정 (기본: ./data). Docker 에서는 볼륨 마운트 권장.
+DB_BACKEND 설정에 따라 백엔드 선택:
+  - sqlite   (기본): DATA_DIR/tasks.db, aiosqlite 드라이버. 추가 인프라 불필요.
+  - postgres       : POSTGRES_* 설정으로 asyncpg 연결. docker compose --profile postgres.
+
+SQLAlchemy Core 가 두 방언(SQL dialect)의 구문 차이를 흡수하므로 동일 코드로 동작한다.
 """
 
 from __future__ import annotations
 
+import asyncio
 import datetime
+import logging
 import os
-import sqlite3
-from collections.abc import Generator
-from contextlib import contextmanager
 from pathlib import Path
 
-_DB_PATH = Path(os.environ.get("DATA_DIR", "data")) / "tasks.db"
+from sqlalchemy import (
+    Column,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    insert,
+    inspect,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+from app import config
+
+logger = logging.getLogger(__name__)
+
+_metadata = MetaData()
+
+tasks = Table(
+    "tasks",
+    _metadata,
+    Column("task_id", String, primary_key=True),
+    Column("description", Text, nullable=False),
+    Column("status", String, nullable=False, server_default="pending"),
+    Column("result", Text),
+    Column("summary", Text),
+    Column("attempts", Integer, nullable=False, server_default="0"),
+    Column("created_at", String, nullable=False),
+    Column("completed_at", String),
+)
+
+_engine: AsyncEngine | None = None
 
 
-@contextmanager
-def _conn() -> Generator[sqlite3.Connection, None, None]:
-    con = sqlite3.connect(_DB_PATH)
-    con.row_factory = sqlite3.Row
+def _database_url() -> str:
+    """설정 기반 SQLAlchemy 비동기 연결 URL."""
+    if config.DB_BACKEND == "postgres":
+        return (
+            f"postgresql+asyncpg://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}"
+            f"@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
+        )
+    db_path = Path(os.environ.get("DATA_DIR", "data")) / "tasks.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return f"sqlite+aiosqlite:///{db_path.as_posix()}"
+
+
+def _get_engine() -> AsyncEngine:
+    global _engine
+    if _engine is None:
+        _engine = create_async_engine(_database_url(), pool_pre_ping=True)
+    return _engine
+
+
+async def dispose() -> None:
+    """엔진 풀 정리 (종료·테스트용)."""
+    global _engine
+    if _engine is not None:
+        await _engine.dispose()
+        _engine = None
+
+
+def _ensure_summary_column(sync_conn) -> None:
+    """기존 DB 호환: summary 컬럼이 없으면 추가 (sqlite/postgres 공통 구문)."""
+    cols = {c["name"] for c in inspect(sync_conn).get_columns("tasks")}
+    if "summary" not in cols:
+        sync_conn.execute(text("ALTER TABLE tasks ADD COLUMN summary TEXT"))
+
+
+async def init() -> None:
+    # postgres 는 docker 에서 동시 기동되므로 준비될 때까지 재시도 (sqlite 는 1회)
+    attempts = 15 if config.DB_BACKEND == "postgres" else 1
+    last_err: Exception | None = None
+    for i in range(attempts):
+        try:
+            async with _get_engine().begin() as conn:
+                await conn.run_sync(_metadata.create_all)
+                await conn.run_sync(_ensure_summary_column)
+            return
+        except Exception as e:  # noqa: BLE001 — postgres 기동 대기 후 재시도
+            last_err = e
+            if i < attempts - 1:
+                logger.warning("DB 연결 대기 중 (%d/%d): %s", i + 1, attempts, e)
+                await asyncio.sleep(2)
+    assert last_err is not None
+    raise last_err
+
+
+async def create(task_id: str, description: str) -> None:
     try:
-        yield con
-        con.commit()
-    finally:
-        con.close()
-
-
-def init() -> None:
-    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with _conn() as con:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                task_id      TEXT PRIMARY KEY,
-                description  TEXT NOT NULL,
-                status       TEXT NOT NULL DEFAULT 'pending',
-                result       TEXT,
-                attempts     INTEGER NOT NULL DEFAULT 0,
-                created_at   TEXT NOT NULL,
-                completed_at TEXT
+        async with _get_engine().begin() as conn:
+            await conn.execute(
+                insert(tasks).values(
+                    task_id=task_id, description=description[:300], created_at=_now()
+                )
             )
-        """)
+    except IntegrityError:
+        pass  # 이미 존재 — 무시 (INSERT OR IGNORE 와 동등)
 
 
-def create(task_id: str, description: str) -> None:
-    with _conn() as con:
-        con.execute(
-            "INSERT OR IGNORE INTO tasks (task_id, description, created_at) VALUES (?,?,?)",
-            (task_id, description[:300], _now()),
+async def set_running(task_id: str) -> None:
+    async with _get_engine().begin() as conn:
+        await conn.execute(
+            update(tasks)
+            .where(tasks.c.task_id == task_id)
+            .values(status="running", attempts=tasks.c.attempts + 1)
         )
 
 
-def set_running(task_id: str) -> None:
-    with _conn() as con:
-        con.execute(
-            "UPDATE tasks SET status='running', attempts=attempts+1 WHERE task_id=?",
-            (task_id,),
+async def set_done(task_id: str, result: str, *, failed: bool = False) -> None:
+    async with _get_engine().begin() as conn:
+        await conn.execute(
+            update(tasks)
+            .where(tasks.c.task_id == task_id)
+            .values(
+                status="failed" if failed else "done",
+                result=result[:4000],
+                completed_at=_now(),
+            )
         )
 
 
-def set_done(task_id: str, result: str, *, failed: bool = False) -> None:
-    with _conn() as con:
-        con.execute(
-            "UPDATE tasks SET status=?, result=?, completed_at=? WHERE task_id=?",
-            ("failed" if failed else "done", result[:4000], _now(), task_id),
+async def set_summary(task_id: str, summary: str) -> None:
+    async with _get_engine().begin() as conn:
+        await conn.execute(
+            update(tasks).where(tasks.c.task_id == task_id).values(summary=summary[:500])
         )
 
 
-def get_recent(limit: int = 10) -> list[dict]:
-    with _conn() as con:
-        rows = con.execute(
-            "SELECT task_id, description, status, result, created_at, completed_at "
-            "FROM tasks ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-    return [dict(r) for r in rows]
+async def get_recent_summaries(limit: int = 3) -> list[dict]:
+    """요약본이 있는 최근 작업을 최신순으로 반환 (새 작업 참조용)."""
+    if limit <= 0:
+        return []
+    async with _get_engine().connect() as conn:
+        rows = await conn.execute(
+            select(tasks.c.summary, tasks.c.created_at)
+            .where(tasks.c.summary.isnot(None), tasks.c.summary != "")
+            .order_by(tasks.c.created_at.desc())
+            .limit(limit)
+        )
+        return [dict(r._mapping) for r in rows]
+
+
+async def get_recent(limit: int = 10) -> list[dict]:
+    async with _get_engine().connect() as conn:
+        rows = await conn.execute(
+            select(
+                tasks.c.task_id,
+                tasks.c.description,
+                tasks.c.status,
+                tasks.c.result,
+                tasks.c.created_at,
+                tasks.c.completed_at,
+            )
+            .order_by(tasks.c.created_at.desc())
+            .limit(limit)
+        )
+        return [dict(r._mapping) for r in rows]
 
 
 def _now() -> str:
-    return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M UTC")

@@ -6,7 +6,7 @@ server.py 가 기대하는 _notify / _run_with_tools / plan_and_run 인터페이
 
 from __future__ import annotations
 
-from app.agent.graph import _notify, run_plan_task, run_task
+from app.agent.graph import _notify, run_plan_task, run_task, summarize_task
 
 
 async def _run_with_tools(task_id: str, prompt: str) -> str:
@@ -17,4 +17,4 @@ async def plan_and_run(task_id: str, description: str) -> str:
     return await run_plan_task(task_id, description)
 
 
-__all__ = ["_notify", "_run_with_tools", "plan_and_run"]
+__all__ = ["_notify", "_run_with_tools", "plan_and_run", "summarize_task"]

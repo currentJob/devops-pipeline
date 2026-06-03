@@ -30,6 +30,7 @@ from typing_extensions import TypedDict
 from app import config
 from app.agent.tools import TOOLS, bash, notion_create_page, notion_search, read_file, write_file
 from app.rag.retriever import retrieve_context
+from app.worker import store
 
 logger = logging.getLogger(__name__)
 
@@ -247,14 +248,54 @@ _AGENT_CONFIG: dict[str, dict] = {
 }
 
 
+async def _recent_memory_block() -> str:
+    """직전 작업 요약본 N개를 컨텍스트 블록으로 구성 (조회 실패해도 빈 문자열)."""
+    if config.WORKER_MEMORY_COUNT <= 0:
+        return ""
+    try:
+        rows = await store.get_recent_summaries(config.WORKER_MEMORY_COUNT)
+    except Exception as e:  # DB 미초기화 등 — 메모리는 부가기능이므로 무시
+        logger.warning("이전 작업 메모리 조회 실패: %s", e)
+        return ""
+    if not rows:
+        return ""
+    lines = [f"- ({r['created_at']}) {r['summary']}" for r in rows]
+    return (
+        "[이전 작업 메모리] 직전 작업 요약입니다. 관련 있으면 참고하되, "
+        "무관하면 무시하라.\n" + "\n".join(lines)
+    )
+
+
+async def summarize_task(description: str, result: str) -> str:
+    """완료된 작업을 다음 요청이 참조할 1~2문장 요약으로 압축."""
+    llm = await _make_llm()
+    resp = await llm.ainvoke(
+        [
+            SystemMessage(
+                content=(
+                    "방금 완료된 작업을 다음 작업이 참조하도록 한국어 1~2문장으로 요약하라.\n"
+                    "- 무엇을 했고 핵심 결과/결정/산출물(URL·파일·지적사항)만 남겨라.\n"
+                    "- 인사말·군더더기 금지. 120자 이내."
+                )
+            ),
+            HumanMessage(content=f"[요청]\n{description[:500]}\n\n[결과]\n{result[:1500]}"),
+        ]
+    )
+    return resp.content.strip()[:300]
+
+
 async def _run_react(task_id: str, description: str, rag_context: str, route: str) -> str:
     """지정 라우트의 전문 에이전트로 ReAct 루프 실행."""
     cfg = _AGENT_CONFIG[route]
-    augmented = (
-        f"{description}\n\n{rag_context}\n\n위 참고 문서를 기반으로 답변하세요."
-        if rag_context
-        else description
-    )
+    memory = await _recent_memory_block()
+    parts: list[str] = []
+    if memory:
+        parts.append(memory)
+    parts.append(description)
+    if rag_context:
+        parts.append(rag_context)
+        parts.append("위 참고 문서를 기반으로 답변하세요.")
+    augmented = "\n\n".join(parts)
     agent = create_react_agent(
         await _make_llm(route),
         cfg["tools"],

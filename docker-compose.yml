@@ -6,6 +6,7 @@ volumes:
   vllm-cache:
   prometheus-data:
   grafana-data:
+  postgres-data:
 
 services:
   bot:
@@ -62,6 +63,32 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # ── PostgreSQL (선택) ────────────────────────────────────────────────────────
+  # 사용: docker compose --profile postgres up
+  # .env 에서 DB_BACKEND=postgres 로 전환 시 워커가 이 DB(내부 네트워크)에 연결.
+  # 미사용 시 워커는 기본 SQLite(./data/tasks.db) 사용.
+  postgres:
+    image: postgres:17-alpine
+    profiles: ["postgres"]
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-tasks}
+      - POSTGRES_USER=${POSTGRES_USER:-pipeline}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    # 내부 네트워크 전용 — 호스트 노출 안 함. 로컬 디버깅 필요 시 아래 주석 해제.
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+    expose:
+      - "5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - pipeline-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pipeline} -d ${POSTGRES_DB:-tasks}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── vLLM (선택) ─────────────────────────────────────────────────────────────
   # 사용: docker compose --profile vllm up
