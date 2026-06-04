@@ -15,6 +15,7 @@ services:
       dockerfile: Dockerfile
       target: runtime
     env_file: .env
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8765:8765"
     volumes:
@@ -43,6 +44,7 @@ services:
       target: runtime
     command: ["python", "-m", "app.worker.server"]
     env_file: .env
+    restart: unless-stopped
     expose:
       - "8766"
     volumes:
@@ -72,6 +74,7 @@ services:
   postgres:
     image: postgres:17-alpine
     profiles: ["postgres"]
+    restart: unless-stopped
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-tasks}
       - POSTGRES_USER=${POSTGRES_USER:-pipeline}
@@ -97,6 +100,7 @@ services:
   vllm:
     image: vllm/vllm-openai:latest
     profiles: ["vllm"]
+    restart: unless-stopped
     command:
       - "--model"
       - "${VLLM_MODEL:-Qwen/Qwen2.5-Coder-7B-Instruct}"
@@ -137,6 +141,7 @@ services:
   prometheus:
     image: prom/prometheus:v3.3.1
     profiles: ["monitoring"]
+    restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=15d"
@@ -156,6 +161,7 @@ services:
   grafana:
     image: grafana/grafana:11.6.1
     profiles: ["monitoring"]
+    restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
