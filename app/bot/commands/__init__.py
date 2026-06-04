@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import aiohttp
 from telegram import Update
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from app import config
 
@@ -79,6 +79,7 @@ def register_commands(app: Application) -> None:
     _state.start_time = time.monotonic()
 
     # 지연 import: 순환 참조 방지 (submodule 들이 이 __init__ 을 import 하므로)
+    from app.bot.commands.git_cmd import cmd_commit, handle_commit_callback
     from app.bot.commands.pipeline_cmd import cmd_run
     from app.bot.commands.system import (
         cmd_health,
@@ -122,3 +123,5 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("diff", cmd_diff))
     app.add_handler(CommandHandler("stack", cmd_stack))
     app.add_handler(CommandHandler("notion", cmd_notion))
+    app.add_handler(CommandHandler("commit", cmd_commit))
+    app.add_handler(CallbackQueryHandler(handle_commit_callback, pattern=r"^commit_(apply|cancel):"))

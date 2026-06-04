@@ -27,7 +27,7 @@ import aiohttp
 from aiohttp import web
 
 from app import config
-from app.worker import metrics, store
+from app.worker import git_ops, metrics, store
 from app.worker.agent import _notify, _run_with_tools, plan_and_run, summarize_task
 
 logger = logging.getLogger(__name__)
@@ -168,6 +168,49 @@ async def _handle_tasks(request: web.Request) -> web.Response:
     )
 
 
+def _json(payload: dict, status: int = 200) -> web.Response:
+    return web.Response(
+        status=status,
+        content_type="application/json",
+        text=json.dumps(payload, ensure_ascii=False),
+    )
+
+
+async def _handle_git_commit(request: web.Request) -> web.Response:
+    """로컬 git 커밋. apply=false → 메시지 미리보기, apply=true → 실제 커밋(push 안 함)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid json")
+
+    if bool(body.get("apply", False)):
+        message = (body.get("message") or "").strip()
+        if not message:
+            return web.Response(status=400, text="empty message")
+        try:
+            head = await git_ops.apply_commit(message)
+        except Exception as e:
+            logger.exception("git 커밋 실패")
+            return _json({"ok": False, "detail": f"{type(e).__name__}: {e}"}, status=500)
+        logger.info("git 커밋 완료: %s", head)
+        return _json({"ok": True, "detail": head})
+
+    # 미리보기: 변경 수집 + 메시지 생성
+    try:
+        status, diff = await git_ops.collect_changes()
+    except Exception as e:
+        logger.exception("git 변경 수집 실패")
+        return _json({"detail": f"{type(e).__name__}: {e}"}, status=500)
+    if not status:
+        return _json({"has_changes": False})
+    try:
+        message = await git_ops.generate_message(status, diff)
+    except Exception as e:
+        logger.exception("커밋 메시지 생성 실패")
+        return _json({"detail": f"{type(e).__name__}: {e}"}, status=500)
+    return _json({"has_changes": True, "message": message, "summary": status})
+
+
 async def _handle_health(_request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
@@ -186,6 +229,7 @@ async def main() -> None:
 
     app = web.Application()
     app.router.add_post("/run", _handle_run)
+    app.router.add_post("/git/commit", _handle_git_commit)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
     app.router.add_get("/metrics", metrics.handle_metrics)

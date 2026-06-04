@@ -49,6 +49,8 @@ async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         "`/audit` pip-audit 실행\n\n"
         "*조회*\n"
         "`/diff` 마지막 커밋 변경 사항\n\n"
+        "*Git*\n"
+        "`/commit` 변경 내역으로 커밋 메시지 생성 → 확인 후 로컬 커밋 (push 안 함)\n\n"
         "*트렌드 리서치*\n"
         "`/stack` IT 트렌드 조사 → 중복 회피 → Notion 새 페이지 생성\n"
         "`/notion` Notion 통합 설정 + 연결 상태 진단",

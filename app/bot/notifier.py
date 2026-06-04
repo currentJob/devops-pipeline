@@ -12,7 +12,8 @@ _pending: dict[str, dict] = {}
 
 
 def register_handlers(app: Application) -> None:
-    app.add_handler(CallbackQueryHandler(_handle_callback))
+    # 승인/거절 콜백만 처리 — commit_ 등 다른 콜백을 가로채지 않도록 패턴 한정
+    app.add_handler(CallbackQueryHandler(_handle_callback, pattern=r"^(approve|reject):"))
 
 
 async def request_approval(app: Application, task_id: str, message: str) -> bool:

@@ -48,8 +48,9 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
-      - ./:/workspace:ro
-      - ./prompts/output:/workspace/prompts/output:rw
+      # rw: /commit 이 로컬 git 커밋(.git 쓰기)을 수행. 원격 push 는 하지 않음.
+      # 컨테이너 root FS 는 read_only 로 유지되고, 쓰기는 이 바인드 마운트로 한정.
+      - ./:/workspace:rw
     networks:
       - pipeline-net
     security_opt:
