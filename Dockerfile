@@ -14,6 +14,11 @@ FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
+# git: /commit 명령이 워커에서 로컬 git 커밋을 수행하는 데 필요 (push 미사용)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # 보안: root 아닌 전용 유저로 실행
 RUN useradd --create-home --no-log-init appuser
 USER appuser
