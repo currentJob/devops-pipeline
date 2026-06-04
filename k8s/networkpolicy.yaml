@@ -1,0 +1,111 @@
+# 파드 간 통신 마이크로세그멘테이션 (Ingress 한정).
+#
+# 설계 의도:
+#   - Ingress 만 default-deny 하고 필요한 출처만 허용한다.
+#   - Egress 는 의도적으로 제한하지 않는다 — bot/worker 가 외부 API
+#     (Telegram, Claude, Notion, Brave)와 kube-dns 로 나가야 하므로,
+#     Egress default-deny 는 이 연동을 끊는다. 따라서 여기서는 다루지 않는다.
+#   - 모니터링/vLLM(프로파일·GPU 조건부)이 배포되지 않아도 정책은 무해하게 무시된다.
+#
+# 적용: kubectl apply -f k8s/networkpolicy.yaml
+---
+# 네임스페이스 내 모든 파드의 Ingress 차단 (아래 allow 정책으로 화이트리스트)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: devops-pipeline
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# bot:8765 ← worker (작업 결과/알림 콜백 수신)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-bot-ingress
+  namespace: devops-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app: bot
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: worker
+      ports:
+        - protocol: TCP
+          port: 8765
+---
+# worker:8766 ← bot (작업 위임/커밋), prometheus (메트릭 스크레이프)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-worker-ingress
+  namespace: devops-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app: worker
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: bot
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8766
+---
+# vllm:8000 ← worker (추론), prometheus (메트릭)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vllm-ingress
+  namespace: devops-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app: vllm
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: worker
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+# prometheus:9090 ← grafana (대시보드 쿼리)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-ingress
+  namespace: devops-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: grafana
+      ports:
+        - protocol: TCP
+          port: 9090
