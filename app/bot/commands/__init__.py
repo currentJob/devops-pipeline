@@ -124,4 +124,6 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("stack", cmd_stack))
     app.add_handler(CommandHandler("notion", cmd_notion))
     app.add_handler(CommandHandler("commit", cmd_commit))
-    app.add_handler(CallbackQueryHandler(handle_commit_callback, pattern=r"^commit_(apply|cancel):"))
+    app.add_handler(
+        CallbackQueryHandler(handle_commit_callback, pattern=r"^commit_(apply|cancel):")
+    )
