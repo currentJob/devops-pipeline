@@ -211,6 +211,44 @@ async def _handle_git_commit(request: web.Request) -> web.Response:
     return _json({"has_changes": True, "message": message, "summary": status})
 
 
+async def _handle_git_push(request: web.Request) -> web.Response:
+    """원격 push. apply=false → 대기 커밋 미리보기, apply=true → 실제 push."""
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid json")
+
+    try:
+        branch = await git_ops.current_branch()
+    except Exception as e:
+        logger.exception("브랜치 조회 실패")
+        return _json({"detail": f"{type(e).__name__}: {e}"}, status=500)
+
+    if bool(body.get("apply", False)):
+        try:
+            detail = await git_ops.push(branch)
+        except Exception as e:
+            logger.warning("git push 실패: %s", e)  # 메시지는 git_ops 에서 토큰 redact 됨
+            return _json({"ok": False, "detail": f"{type(e).__name__}: {e}"}, status=500)
+        logger.info("git push 완료: %s", branch)
+        return _json({"ok": True, "detail": detail})
+
+    # 미리보기
+    if not config.GITHUB_TOKEN:
+        return _json(
+            {
+                "ready": False,
+                "branch": branch,
+                "detail": "GITHUB_TOKEN 미설정 — .env 에 PAT 추가 필요",
+            }
+        )
+    pending = await git_ops.pending_commits(branch)
+    if pending == "":
+        return _json({"ready": False, "branch": branch, "detail": "이미 최신 — push 할 커밋 없음"})
+    preview = "origin 에 신규 브랜치로 push 됩니다" if pending is None else pending
+    return _json({"ready": True, "branch": branch, "pending": preview})
+
+
 async def _handle_health(_request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
@@ -230,6 +268,7 @@ async def main() -> None:
     app = web.Application()
     app.router.add_post("/run", _handle_run)
     app.router.add_post("/git/commit", _handle_git_commit)
+    app.router.add_post("/git/push", _handle_git_push)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
     app.router.add_get("/metrics", metrics.handle_metrics)

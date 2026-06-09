@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # token → 생성된 커밋 메시지 (인라인 버튼 콜백이 참조). 봇 프로세스 메모리에만 보관.
 _pending: dict[str, str] = {}
+# token → push 대상 브랜치 (push 확인 콜백이 참조).
+_pending_push: dict[str, str] = {}
 
 
 async def cmd_commit(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -117,4 +119,99 @@ async def handle_commit_callback(update: Update, _context: ContextTypes.DEFAULT_
     else:
         await query.edit_message_text(
             f"{query.message.text}\n\n→ 🔴 커밋 실패\n{data.get('detail', '')}"
+        )
+
+
+async def cmd_push(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/push` — 현재 브랜치를 origin 으로 push (확인 후)."""
+    if not _authorized(update):
+        return
+
+    await update.message.reply_text("🔍 push 대상 확인 중...")
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                config.WORKER_PUSH_URL,
+                json={"apply": False},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp,
+        ):
+            if resp.status != 200:
+                body = await resp.text()
+                await update.message.reply_text(
+                    f"⚠️ push 미리보기 실패 (HTTP {resp.status})\n{body}"
+                )
+                return
+            data = await resp.json()
+    except aiohttp.ClientError as e:
+        logger.warning("push 미리보기 통신 실패: %s", e)
+        await update.message.reply_text(f"🔴 워커 통신 실패: {e}")
+        return
+
+    branch = data.get("branch", "?")
+    if not data.get("ready"):
+        await update.message.reply_text(f"ℹ️ push 불가 (`{branch}`)\n{data.get('detail', '')}")
+        return
+
+    token = str(uuid.uuid4())[:8]
+    _pending_push[token] = branch
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("🚀 push", callback_data=f"push_apply:{token}"),
+                InlineKeyboardButton("❌ 취소", callback_data=f"push_cancel:{token}"),
+            ]
+        ]
+    )
+    await update.message.reply_text(
+        f"🚀 push 미리보기\n\n브랜치: {branch} → origin\n\n— 대기 커밋 —\n{data['pending']}",
+        reply_markup=keyboard,
+    )
+
+
+async def handle_push_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    action, token = query.data.split(":", 1)
+
+    branch = _pending_push.pop(token, None)
+    if branch is None:
+        await query.answer("만료되었거나 이미 처리된 요청입니다.")
+        await query.edit_message_reply_markup(reply_markup=None)
+        return
+
+    if action == "push_cancel":
+        await query.edit_message_text(f"{query.message.text}\n\n→ ❌ 취소됨")
+        await query.answer()
+        return
+
+    await query.answer("push 중...")
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                config.WORKER_PUSH_URL,
+                json={"apply": True},
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as resp,
+        ):
+            if resp.status != 200:
+                body = await resp.text()
+                await query.edit_message_text(
+                    f"{query.message.text}\n\n→ 🔴 push 실패 (HTTP {resp.status})\n{body}"
+                )
+                return
+            data = await resp.json()
+    except aiohttp.ClientError as e:
+        logger.warning("push 적용 통신 실패: %s", e)
+        await query.edit_message_text(f"{query.message.text}\n\n→ 🔴 워커 통신 실패: {e}")
+        return
+
+    if data.get("ok"):
+        await query.edit_message_text(
+            f"{query.message.text}\n\n→ ✅ push 완료\n{data.get('detail', '')}"
+        )
+    else:
+        await query.edit_message_text(
+            f"{query.message.text}\n\n→ 🔴 push 실패\n{data.get('detail', '')}"
         )

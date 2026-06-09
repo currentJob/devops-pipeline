@@ -113,3 +113,53 @@ async def apply_commit(message: str) -> str:
         raise RuntimeError(f"git commit 실패: {out}")
     _, head = await _git("log", "-1", "--oneline")
     return head
+
+
+# ── 원격 push (/push 명령) ────────────────────────────────────────────────────
+
+
+def _redact(text: str) -> str:
+    """출력/에러에서 토큰 문자열을 가린다 (로그·응답 노출 방지)."""
+    return text.replace(config.GITHUB_TOKEN, "***") if config.GITHUB_TOKEN else text
+
+
+def _authenticated_url(origin: str, token: str) -> str:
+    """https 원격 URL 에 토큰을 끼운다 (.git/config 에 저장하지 않고 1회용 인자로만 사용)."""
+    prefix = "https://"
+    if not origin.startswith(prefix):
+        raise RuntimeError(f"HTTPS 원격만 지원합니다: {origin}")
+    return f"{prefix}x-access-token:{token}@{origin[len(prefix) :]}"
+
+
+async def current_branch() -> str:
+    rc, out = await _git("rev-parse", "--abbrev-ref", "HEAD")
+    if rc != 0:
+        raise RuntimeError(f"현재 브랜치 조회 실패: {out}")
+    return out
+
+
+async def pending_commits(branch: str) -> str | None:
+    """origin/<branch> 대비 push 대기 커밋(oneline).
+
+    반환: None = 업스트림 없음(신규 브랜치) / "" = 최신 / 그 외 = 대기 커밋 목록.
+    """
+    rc, _ = await _git("rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}")
+    if rc != 0:
+        return None
+    _, out = await _git("log", f"origin/{branch}..HEAD", "--oneline")
+    return out
+
+
+async def push(branch: str) -> str:
+    """현재 HEAD 를 origin/<branch> 로 push. 토큰은 1회용 URL 인자로만 전달."""
+    if not config.GITHUB_TOKEN:
+        raise RuntimeError("GITHUB_TOKEN 미설정 — .env 에 GitHub PAT 추가 필요")
+    rc, origin = await _git("remote", "get-url", "origin")
+    if rc != 0:
+        raise RuntimeError(f"origin 원격 조회 실패: {origin}")
+    auth_url = _authenticated_url(origin, config.GITHUB_TOKEN)
+    rc, out = await _git("push", auth_url, f"HEAD:{branch}")
+    out = _redact(out)
+    if rc != 0:
+        raise RuntimeError(f"git push 실패: {out}")
+    return out or f"{branch} → origin push 완료"

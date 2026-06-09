@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from app import config
 from app.worker import git_ops
 
 
@@ -83,3 +84,74 @@ async def test_apply_commit_raises_when_commit_fails(monkeypatch):
     monkeypatch.setattr(git_ops, "_git", fake)
     with pytest.raises(RuntimeError, match="git commit 실패"):
         await git_ops.apply_commit("Fix: 수정")
+
+
+# ── push ──────────────────────────────────────────────────────────────────────
+
+
+def test_authenticated_url_injects_token():
+    url = git_ops._authenticated_url("https://github.com/o/r.git", "ghp_secret")
+    assert url == "https://x-access-token:ghp_secret@github.com/o/r.git"
+
+
+def test_authenticated_url_rejects_non_https():
+    with pytest.raises(RuntimeError, match="HTTPS"):
+        git_ops._authenticated_url("git@github.com:o/r.git", "ghp_secret")
+
+
+def test_redact_hides_token(monkeypatch):
+    monkeypatch.setattr(config, "GITHUB_TOKEN", "ghp_secret")
+    assert git_ops._redact("error at ghp_secret@github.com") == "error at ***@github.com"
+
+
+def test_redact_noop_when_no_token(monkeypatch):
+    monkeypatch.setattr(config, "GITHUB_TOKEN", "")
+    assert git_ops._redact("nothing to hide") == "nothing to hide"
+
+
+async def test_pending_commits_no_upstream(monkeypatch):
+    monkeypatch.setattr(
+        git_ops,
+        "_git",
+        _fake_git({("rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"): (1, "")}),
+    )
+    assert await git_ops.pending_commits("main") is None
+
+
+async def test_pending_commits_lists_ahead(monkeypatch):
+    monkeypatch.setattr(
+        git_ops,
+        "_git",
+        _fake_git(
+            {
+                ("rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"): (0, "abc"),
+                ("log", "origin/main..HEAD", "--oneline"): (0, "abc1234 Feat: x"),
+            }
+        ),
+    )
+    assert await git_ops.pending_commits("main") == "abc1234 Feat: x"
+
+
+async def test_push_requires_token(monkeypatch):
+    monkeypatch.setattr(config, "GITHUB_TOKEN", "")
+    with pytest.raises(RuntimeError, match="GITHUB_TOKEN 미설정"):
+        await git_ops.push("main")
+
+
+async def test_push_redacts_token_on_failure(monkeypatch):
+    monkeypatch.setattr(config, "GITHUB_TOKEN", "ghp_secret")
+    fake = _fake_git(
+        {
+            ("remote", "get-url", "origin"): (0, "https://github.com/o/r.git"),
+            (
+                "push",
+                "https://x-access-token:ghp_secret@github.com/o/r.git",
+                "HEAD:main",
+            ): (1, "fatal: auth failed for https://x-access-token:ghp_secret@github.com"),
+        }
+    )
+    monkeypatch.setattr(git_ops, "_git", fake)
+    with pytest.raises(RuntimeError) as exc:
+        await git_ops.push("main")
+    assert "ghp_secret" not in str(exc.value)
+    assert "***" in str(exc.value)
