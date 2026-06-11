@@ -1,0 +1,15 @@
+# dev/test 도구(ruff·pytest·pip-audit) 포함 워커 — 봇의 /lint·/test·/audit 를 컨테이너에서 실행.
+#
+# 프로덕션 이미지(runtime)는 dev 도구가 없어 위 명령이 동작하지 않는다(의도된 lean 정책).
+# 이 override 는 워커를 dev 타겟(runtime-dev)으로 빌드해 도구를 포함시킨다.
+#
+# 사용:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml build worker
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d worker
+#
+# 주의: docker-compose.registry.yml(이미지 pull)과는 함께 쓰지 않는다 — dev 는 로컬 빌드 전용.
+
+services:
+  worker:
+    build:
+      target: runtime-dev

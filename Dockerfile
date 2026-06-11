@@ -42,3 +42,15 @@ COPY app/ ./app/
 COPY vendor/ ./vendor/
 
 CMD ["python", "-m", "app.main"]
+
+# ── dev/test 스테이지 ─────────────────────────────────────────────────────────
+# 프로덕션 이미지(runtime)는 lean 유지. 이 타겟은 dev 도구(ruff·pytest·pip-audit)를
+# 포함해 봇의 /lint·/test·/audit 를 컨테이너에서 실행 가능.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d worker
+# dev 의존성을 포함해 venv 재빌드 (builder 재사용, --no-dev 제거)
+FROM builder AS builder-dev
+RUN uv sync --frozen --no-install-project
+
+FROM runtime AS runtime-dev
+# dev 의존성이 포함된 venv 로 교체 (ruff/pytest/pip-audit 바이너리가 /app/.venv/bin 에)
+COPY --from=builder-dev /build/.venv /app/.venv

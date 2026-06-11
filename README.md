@@ -239,6 +239,13 @@ START → plan(JSON 분해) → execute(루프) → END
 | `/history` | 최근 작업 이력 (SQLite) |
 | `/reindex` | vault 노트를 Qdrant 벡터 인덱스에 재인덱싱 |
 
+> ⚠️ `/lint`·`/test`·`/audit` 는 dev 도구(ruff·pytest·pip-audit)가 필요합니다. 프로덕션
+> 워커 이미지(`runtime`)는 lean 정책상 이 도구가 없으므로, **dev 타겟**으로 워커를 빌드해야
+> 동작합니다:
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build worker
+> ```
+
 ---
 
 ## 6단계 프롬프트 파이프라인

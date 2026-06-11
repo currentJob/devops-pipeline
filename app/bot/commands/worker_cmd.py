@@ -146,7 +146,7 @@ async def cmd_lint(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await _dispatch_to_worker(
         update,
-        "bash 도구로 'uv run ruff check .' 를 실행하고 결과를 한국어로 보고해줘. "
+        "bash 도구로 'ruff check .' 를 실행하고 결과를 한국어로 보고해줘. "
         "0 errors 면 '✅ ruff 통과' 만 답해. 오류가 있으면 파일+규칙ID+간단 설명만 표로 정리.",
     )
 
@@ -156,7 +156,7 @@ async def cmd_test(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await _dispatch_to_worker(
         update,
-        "bash 도구로 'uv run pytest tests/ -v' 를 실행하고, 통과/실패 개수만 우선 보고해. "
+        "bash 도구로 'pytest tests/ -v' 를 실행하고, 통과/실패 개수만 우선 보고해. "
         "실패가 있으면 어떤 케이스가 왜 실패했는지 한 줄씩만.",
     )
 
@@ -166,7 +166,7 @@ async def cmd_audit(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
         return
     await _dispatch_to_worker(
         update,
-        "bash 도구로 'uv run pip-audit' 를 실행하고, CVE 가 있으면 "
+        "bash 도구로 'pip-audit' 를 실행하고, CVE 가 있으면 "
         "패키지+CVE-ID+심각도만 표로 한국어 정리. 없으면 '✅ CVE 0건' 만 답해.",
     )
 
