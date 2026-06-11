@@ -42,6 +42,55 @@ jobs:
       - name: pip-audit
         run: uv run pip-audit --strict
 
+  smoke:
+    runs-on: ubuntu-latest
+    needs: lint-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 1) dev 이미지 안에서 테스트 스위트 실행 — 봇 /test 경로(컨테이너 내 pytest 도구) 검증
+      - name: Build dev worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime-dev
+          push: false
+          load: true
+          tags: devops-pipeline:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run test suite inside dev image
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace \
+            devops-pipeline:dev pytest tests/ -q
+
+      # 2) 컨테이너 부팅 + 자가점검 — 기동/Qdrant 연결/git ownership 등 통합 결함 검출
+      - name: Boot worker + qdrant
+        run: |
+          printf 'TELEGRAM_TOKEN=ci-dummy\nTELEGRAM_CHAT_ID=0\n' > .env
+          docker compose up -d --build qdrant worker
+
+      - name: Wait for worker health
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose exec -T worker python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8766/health',timeout=2).status==200 else 1)" 2>/dev/null; then
+              echo "worker healthy"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::worker 가 기동되지 않음"; docker compose logs worker; exit 1
+
+      - name: Self-check (db/git/qdrant 필수 통과)
+        run: docker compose exec -T worker python /workspace/scripts/smoke_selfcheck.py
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
+
   container-build-scan:
     runs-on: ubuntu-latest
     needs: lint-test

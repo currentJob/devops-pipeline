@@ -27,7 +27,7 @@ import aiohttp
 from aiohttp import web
 
 from app import config
-from app.worker import git_ops, metrics, store
+from app.worker import git_ops, metrics, selfcheck, store
 from app.worker.agent import _notify, _run_with_tools, plan_and_run, summarize_task
 
 logger = logging.getLogger(__name__)
@@ -270,6 +270,13 @@ async def _handle_health(_request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
 
+async def _handle_selfcheck(_request: web.Request) -> web.Response:
+    """런타임 의존성 자가점검 결과(JSON). 실패 항목이 있으면 503."""
+    checks = await selfcheck.run_checks()
+    all_ok = all(c["ok"] for c in checks)
+    return _json({"ok": all_ok, "checks": checks}, status=200 if all_ok else 503)
+
+
 async def main() -> None:
     global _queue, _semaphore
 
@@ -289,6 +296,7 @@ async def main() -> None:
     app.router.add_post("/vault/reindex", _handle_vault_reindex)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
+    app.router.add_get("/selfcheck", _handle_selfcheck)
     app.router.add_get("/metrics", metrics.handle_metrics)
     runner = web.AppRunner(app)
     await runner.setup()
@@ -306,6 +314,12 @@ async def main() -> None:
         config.WORKER_MAX_CONCURRENT,
         config.WORKER_QUEUE_SIZE,
     )
+
+    # 기동 자가점검 — 런타임 의존성 상태를 로그로 (비차단). 상세는 GET /selfcheck.
+    for c in await selfcheck.run_checks():
+        icon = "🟢" if c["ok"] else "🔴"
+        log = logger.info if c["ok"] else logger.warning
+        log("자가점검 %s %s: %s", icon, c["name"], c["detail"])
 
     stop = asyncio.Event()
     try:
