@@ -27,15 +27,23 @@ _DOWN_TTL_S = 30.0
 
 _client = None  # 지연 초기화된 QdrantClient
 _down_until = 0.0  # 이 시각까지는 미가용으로 간주 (반복적 느린 실패 방지)
+_last_error: str | None = None  # 마지막 실패 원인 (진단·에러 표시용)
+
+
+def last_error() -> str | None:
+    """가장 최근 인덱스 실패 원인 (없으면 None)."""
+    return _last_error
 
 
 def _point_id(rel_path: str) -> str:
     return str(uuid.uuid5(_NAMESPACE, rel_path))
 
 
-def _mark_down() -> None:
-    global _down_until
+def _mark_down(err: Exception | None = None) -> None:
+    global _down_until, _last_error
     _down_until = time.monotonic() + _DOWN_TTL_S
+    if err is not None:
+        _last_error = f"{type(err).__name__}: {err}"
 
 
 def _get_client():
@@ -55,8 +63,8 @@ def _get_client():
         _client = client
         return _client
     except Exception as e:
-        logger.warning("Qdrant 초기화 실패 → 키워드 검색 폴백: %s", e)
-        _mark_down()
+        logger.warning("Qdrant/임베딩 초기화 실패 → 키워드 검색 폴백: %s", e)
+        _mark_down(e)
         return None
 
 
@@ -75,7 +83,7 @@ def index_note(rel_path: str, title: str, text: str) -> bool:
         return True
     except Exception as e:
         logger.warning("노트 인덱싱 실패 path=%s: %s", rel_path, e)
-        _mark_down()
+        _mark_down(e)
         return False
 
 
@@ -108,7 +116,7 @@ def index_all(vault_dir) -> int | None:
         return len(documents)
     except Exception as e:
         logger.warning("vault 재인덱싱 실패: %s", e)
-        _mark_down()
+        _mark_down(e)
         return None
 
 
@@ -125,7 +133,7 @@ def semantic_search(query: str, limit: int = 10) -> str | None:
         )
     except Exception as e:
         logger.warning("의미 검색 실패 → 키워드 폴백: %s", e)
-        _mark_down()
+        _mark_down(e)
         return None
 
     lines: list[str] = []

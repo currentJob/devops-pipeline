@@ -261,7 +261,8 @@ async def _handle_vault_reindex(_request: web.Request) -> web.Response:
     # 임베딩+네트워크는 동기·블로킹 → 이벤트 루프 밖 스레드에서 실행
     count = await asyncio.to_thread(vault_index.index_all, vault_dir)
     if count is None:
-        return _json({"ok": False, "detail": "벡터 인덱스 미가용 (Qdrant 연결 실패)"}, status=503)
+        cause = vault_index.last_error() or "원인 미상 (워커 로그 확인)"
+        return _json({"ok": False, "detail": f"벡터 인덱스 미가용 — {cause}"}, status=503)
     return _json({"ok": True, "indexed": count})
 
 

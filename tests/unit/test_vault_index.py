@@ -57,6 +57,8 @@ def test_get_client_failure_marks_down(monkeypatch):
 
     monkeypatch.setattr("qdrant_client.QdrantClient", _boom)
     assert vault_index._get_client() is None
+    # 실패 원인이 last_error 로 노출되어야 함 (/reindex 진단 메시지용)
+    assert "connection refused" in (vault_index.last_error() or "")
     # 다운 윈도우 설정 → 이후 호출도 즉시 None (재연결 시도 안 함)
     assert vault_index.semantic_search("q") is None
 
