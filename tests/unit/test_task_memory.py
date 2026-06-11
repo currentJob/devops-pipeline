@@ -88,10 +88,10 @@ async def test_memory_block_disabled_when_count_zero(temp_store, monkeypatch):
 async def test_memory_block_formats_summaries(temp_store, monkeypatch):
     monkeypatch.setattr(config, "WORKER_MEMORY_COUNT", 3)
     await temp_store.create("t1", "x")
-    await temp_store.set_summary("t1", "React 트렌드 Notion 페이지 생성")
+    await temp_store.set_summary("t1", "React 트렌드 vault 노트 생성")
     block = await graph._recent_memory_block()
     assert "[이전 작업 메모리]" in block
-    assert "React 트렌드 Notion 페이지 생성" in block
+    assert "React 트렌드 vault 노트 생성" in block
 
 
 async def test_memory_block_empty_when_no_summaries(temp_store, monkeypatch):

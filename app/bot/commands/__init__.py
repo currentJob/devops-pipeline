@@ -41,7 +41,7 @@ def _format_uptime(seconds: float) -> str:
 
 
 async def _dispatch_to_worker(
-    update: Update, description: str, upload_to_notion: bool = False
+    update: Update, description: str, save_to_vault: bool = False
 ) -> None:
     """공통 패턴: 워커에 작업 위임 + 즉시 '작업 시작' 응답."""
     task_id = str(uuid.uuid4())[:8]
@@ -53,7 +53,7 @@ async def _dispatch_to_worker(
                 json={
                     "task_id": task_id,
                     "description": description,
-                    "upload_to_notion": upload_to_notion,
+                    "save_to_vault": save_to_vault,
                 },
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as resp,
@@ -102,7 +102,6 @@ def register_commands(app: Application) -> None:
         cmd_history,
         cmd_infra,
         cmd_lint,
-        cmd_notion,
         cmd_plan,
         cmd_stack,
         cmd_task,
@@ -127,7 +126,6 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("audit", cmd_audit))
     app.add_handler(CommandHandler("diff", cmd_diff))
     app.add_handler(CommandHandler("stack", cmd_stack))
-    app.add_handler(CommandHandler("notion", cmd_notion))
     app.add_handler(CommandHandler("commit", cmd_commit))
     app.add_handler(
         CallbackQueryHandler(handle_commit_callback, pattern=r"^commit_(apply|cancel):")

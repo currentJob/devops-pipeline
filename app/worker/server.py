@@ -3,7 +3,7 @@
 봇으로부터 작업 설명을 받아 에이전트에 위임하고,
 결과를 봇의 worker-result 엔드포인트로 다시 POST 한다.
 
-POST /run   body: {"task_id": str, "description": str, "upload_to_notion": bool}
+POST /run   body: {"task_id": str, "description": str, "save_to_vault": bool}
   → 202 accepted  (백그라운드 처리)
   → 429 큐 가득 참
 
@@ -40,7 +40,7 @@ WORKER_PORT = int(os.environ.get("WORKER_PORT", "8766"))
 class _Job:
     task_id: str
     description: str
-    upload_to_notion: bool = False
+    save_to_vault: bool = False
 
 
 _queue: asyncio.Queue[_Job] = asyncio.Queue(maxsize=0)  # main() 에서 실제 크기로 교체
@@ -68,7 +68,7 @@ async def _report_result(task_id: str, result: str) -> None:
 
 
 async def _process_task(job: _Job) -> None:
-    task_id, description, upload_to_notion = job.task_id, job.description, job.upload_to_notion
+    task_id, description, save_to_vault = job.task_id, job.description, job.save_to_vault
     logger.info("작업 시작 task_id=%s desc=%r", task_id, description[:80])
 
     # 처리 시간 + 동시 처리 수 계측 (예외/조기반환에도 게이지 복구)
@@ -86,11 +86,12 @@ async def _process_task(job: _Job) -> None:
                 logger.exception("플래너 오류 task_id=%s", task_id)
                 result = f"(플래너 오류: {type(e).__name__}: {e})"
         else:
-            if upload_to_notion and config.NOTION_TOKEN and config.NOTION_PARENT_PAGE_ID:
+            if save_to_vault:
                 description = (
                     description
-                    + "\n\n[NOTION_SAVE] 작업 완료 후 notion_create_page 도구로 결과를 저장하라. "
-                    "title은 작업 요약(60자 이내), icon='📋'. 저장 완료 후 페이지 URL을 응답에 포함."
+                    + "\n\n[VAULT_SAVE] 작업 완료 후 vault_save 도구로 결과를 Obsidian vault 에 저장하라. "
+                    "title은 작업 요약(60자 이내), category·tags를 적절히 지정. "
+                    "저장 완료 후 파일 경로를 응답에 포함."
                 )
             try:
                 result = await _run_with_tools(task_id, description)
@@ -141,9 +142,9 @@ async def _handle_run(request: web.Request) -> web.Response:
     description = (body.get("description") or "").strip()
     if not description:
         return web.Response(status=400, text="empty description")
-    upload_to_notion = bool(body.get("upload_to_notion", False))
+    save_to_vault = bool(body.get("save_to_vault", False))
 
-    job = _Job(task_id=task_id, description=description, upload_to_notion=upload_to_notion)
+    job = _Job(task_id=task_id, description=description, save_to_vault=save_to_vault)
     try:
         _queue.put_nowait(job)
     except asyncio.QueueFull:

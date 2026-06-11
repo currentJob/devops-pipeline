@@ -6,7 +6,6 @@ from telegram.ext import ContextTypes
 
 from app import config
 from app.bot.commands import _authorized, _dispatch_to_worker
-from app.notion import client as notion_client
 
 
 async def cmd_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -22,7 +21,7 @@ async def cmd_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    await _dispatch_to_worker(update, description, upload_to_notion=True)
+    await _dispatch_to_worker(update, description, save_to_vault=True)
 
 
 async def cmd_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -50,7 +49,7 @@ async def cmd_doc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parse_mode="Markdown",
         )
         return
-    await _dispatch_to_worker(update, f"[DOC_TASK] {description}", upload_to_notion=True)
+    await _dispatch_to_worker(update, f"[DOC_TASK] {description}", save_to_vault=True)
 
 
 async def cmd_infra(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -74,11 +73,11 @@ async def cmd_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     description = " ".join(context.args).strip()
     if not description:
         await update.message.reply_text(
-            "사용법: `/plan <복합 작업 설명>`\n예: `/plan 코드 리뷰 후 개선 사항 문서화하고 Notion에 저장`",
+            "사용법: `/plan <복합 작업 설명>`\n예: `/plan 코드 리뷰 후 개선 사항 문서화하고 Obsidian에 저장`",
             parse_mode="Markdown",
         )
         return
-    await _dispatch_to_worker(update, f"[PLAN_TASK] {description}", upload_to_notion=True)
+    await _dispatch_to_worker(update, f"[PLAN_TASK] {description}", save_to_vault=True)
 
 
 async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -160,50 +159,8 @@ async def cmd_diff(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def cmd_notion(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
-    """`/notion` — Notion 통합 설정 + 연결 상태 진단."""
-    if not _authorized(update):
-        return
-
-    def m(ok: bool) -> str:
-        return "🟢" if ok else "🔴"
-
-    token = config.NOTION_TOKEN
-    page_id = config.NOTION_PARENT_PAGE_ID
-
-    token_set = bool(token)
-    page_id_set = bool(page_id)
-
-    if not token_set or not page_id_set:
-        lines = [
-            "🔍 *Notion 연결 상태*\n",
-            f"{m(token_set)} NOTION\\_TOKEN {'설정됨' if token_set else '미설정 — .env 에 추가 필요'}",
-            f"{m(page_id_set)} NOTION\\_PARENT\\_PAGE\\_ID {'설정됨' if page_id_set else '미설정 — .env 에 추가 필요'}",
-        ]
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
-        return
-
-    await update.message.reply_text("🔍 Notion API 연결 확인 중...", parse_mode="Markdown")
-
-    result = await notion_client.check_connection(token, page_id)
-
-    lines = [
-        "🔍 *Notion 연결 상태*\n",
-        "🟢 NOTION\\_TOKEN 설정됨",
-        "🟢 NOTION\\_PARENT\\_PAGE\\_ID 설정됨",
-        f"{m(result['token_ok'])} API 토큰 유효성",
-        f"{m(result['page_ok'])} 부모 페이지 접근 권한",
-    ]
-    if result["error"]:
-        lines.append(f"\n⚠️ {result['error']}")
-    else:
-        lines.append("\n✅ 모든 설정 정상 — `/stack` 사용 가능")
-
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
-
-
 async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
-    """`/stack` — IT 트렌드를 조사해서 Notion 에 새 페이지 생성. 중복 회피."""
+    """`/stack` — IT 트렌드를 조사해서 Obsidian vault 에 새 노트 생성. 중복 회피."""
     if not _authorized(update):
         return
     today = datetime.date.today().strftime("%Y-%m-%d")
@@ -211,15 +168,16 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
     await _dispatch_to_worker(
         update,
         f"[STACK_TASK] 오늘 날짜: {today}. 다음 절차를 정확히 따라 실행해라.\n\n"
-        "1. notion_search 도구로 다음 4가지 쿼리를 차례로 호출해 기존 페이지 제목을 수집:\n"
+        "1. vault_search 도구로 다음 4가지 쿼리를 차례로 호출해 기존 노트 제목을 수집:\n"
         "   - 'IT 트렌드'\n"
         "   - 'tech stack'\n"
         "   - '학습 로드맵'\n"
         "   - 'technology'\n"
-        "2. 검색 결과의 제목들에서 이미 다뤄진 카테고리를 추정 (예: AI 에이전트, "
+        "2. recent_research 도구로 최근 한 달간 실제 커뮤니티 반응·채택 신호를 수집.\n"
+        "3. 검색 결과의 제목들에서 이미 다뤄진 카테고리를 추정 (예: AI 에이전트, "
         "WebAssembly, Iceberg, DevOps, 보안 등). 정확히 매칭되는 카테고리만 '다뤄짐' 으로 분류.\n"
-        f"3. {today} 기준으로 다뤄지지 않았거나 보강할 만한 **신규 카테고리 3~5개** 를 선정.\n"
-        f"   반드시 {today} 시점에 실제로 주목받고 있는 기술을 선정할 것.\n"
+        f"4. {today} 기준으로 다뤄지지 않았거나 보강할 만한 **신규 카테고리 3~5개** 를 선정.\n"
+        f"   반드시 {today} 시점에 실제로 주목받고 있는 기술을 선정할 것 (recent_research 근거 활용).\n"
         "   예시 후보군 (시점 맞지 않으면 다른 트렌드로 대체 가능):\n"
         "   - Mojo/Zig (신흥 시스템 언어)\n"
         "   - Tauri/Wails (네이티브 데스크톱)\n"
@@ -231,16 +189,17 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
         "   - WebGPU\n"
         "   - 실시간 협업 (Liveblocks, PartyKit)\n"
         "   * 위는 예시일 뿐 — 기존과 겹치지 않으면 OK.\n"
-        f"4. {today} 기준 각 카테고리에 대해 마크다운 섹션을 작성:\n"
+        f"5. {today} 기준 각 카테고리에 대해 마크다운 섹션을 작성:\n"
         "   - ## 카테고리명\n"
         f"   - ### {today} 기준 트렌드 개요 (2~4문장, 현재 시점 채택률·성숙도 포함)\n"
         "   - ### 핵심 기술 스택 (불릿)\n"
         "   - ### 추천 학습 자료 (가능하면 알고 있는 공식 문서/주요 블로그 링크)\n"
         "   - ### 적합한 역할\n"
-        f"5. 본문 맨 앞에 '{today} 기준 신규 트렌드를 선정한 이유' 서론 + 맨 뒤에 '우선순위 추천' 짧게.\n"
-        "6. notion_create_page 호출:\n"
+        f"6. 본문 맨 앞에 '{today} 기준 신규 트렌드를 선정한 이유' 서론 + 맨 뒤에 '우선순위 추천' 짧게.\n"
+        "7. vault_save 호출:\n"
         f"   - title: '{year} 신규 트렌드 — {today}'\n"
         "   - content: 위 마크다운\n"
-        "   - icon: '🆕'\n"
-        "7. 응답: 생성된 페이지 url 만 한 줄로 알려줘. 추가 설명 불필요.",
+        "   - category: 'IT 트렌드'\n"
+        "   - tags: '트렌드,기술스택'\n"
+        "8. 응답: 저장된 노트 경로만 한 줄로 알려줘. 추가 설명 불필요.",
     )

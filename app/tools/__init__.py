@@ -5,7 +5,7 @@ import logging
 from collections.abc import Callable
 
 from app.tools.filesystem import read_file, write_file
-from app.tools.notion import _notion_create_page, _notion_search
+from app.tools.obsidian import vault_save, vault_search
 from app.tools.shell import bash
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,10 @@ _TOOL_HANDLERS: dict[str, Callable] = {
     "read_file": lambda a: read_file(a["path"]),
     "write_file": lambda a: write_file(a["path"], a["content"]),
     "bash": lambda a: bash(a["command"]),
-    "notion_search": lambda a: _notion_search(a["query"], int(a.get("limit", 10))),
-    "notion_create_page": lambda a: _notion_create_page(a["title"], a["content"], a.get("icon")),
+    "vault_search": lambda a: vault_search(a["query"], int(a.get("limit", 10))),
+    "vault_save": lambda a: vault_save(
+        a["title"], a["content"], a.get("category", ""), a.get("tags", "")
+    ),
 }
 
 TOOLS_SCHEMA = [
@@ -69,10 +71,10 @@ TOOLS_SCHEMA = [
         },
     },
     {
-        "name": "notion_search",
+        "name": "vault_search",
         "description": (
-            "Notion 워크스페이스 내 페이지 검색. query 키워드로 매칭되는 페이지의 "
-            "id, title, url 리스트(JSON 문자열)를 반환. /stack 워크플로에서 중복 회피용."
+            "Obsidian vault 의 기존 노트를 query 키워드로 검색 (파일명+본문 매칭). "
+            "매칭 노트의 경로+요약 목록을 반환. /stack 등에서 중복 회피용."
         ),
         "input_schema": {
             "type": "object",
@@ -84,19 +86,19 @@ TOOLS_SCHEMA = [
         },
     },
     {
-        "name": "notion_create_page",
+        "name": "vault_save",
         "description": (
-            "NOTION_PARENT_PAGE_ID 하위에 새 페이지를 생성. "
-            "title 과 마크다운 본문(content), 선택적 emoji icon 을 받아 "
-            "{id, url} 또는 {error} 를 JSON 문자열로 반환. "
-            "마크다운은 자동으로 Notion 블록으로 변환됨 (헤딩/리스트/코드/단락 지원)."
+            "Obsidian vault 에 마크다운 노트(.md)를 저장. "
+            "title·마크다운 본문(content)·선택적 category(폴더)·tags(쉼표 구분)를 받아 "
+            "YAML 프론트매터(title/date/tags/source)를 자동 추가하고 저장 경로를 반환."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
                 "content": {"type": "string", "description": "마크다운 본문"},
-                "icon": {"type": "string", "description": "이모지 1자 (선택)"},
+                "category": {"type": "string", "description": "분류 폴더명 (선택)"},
+                "tags": {"type": "string", "description": "쉼표 구분 태그 (선택)"},
             },
             "required": ["title", "content"],
         },

@@ -6,7 +6,8 @@ from langchain_core.tools import tool
 
 from app.tools.filesystem import read_file as _read_file
 from app.tools.filesystem import write_file as _write_file
-from app.tools.notion import _notion_create_page, _notion_search
+from app.tools.obsidian import vault_save as _vault_save
+from app.tools.obsidian import vault_search as _vault_search
 from app.tools.research import recent_research as _recent_research
 from app.tools.shell import bash as _bash
 
@@ -47,15 +48,16 @@ async def recent_research(topic: str) -> str:
 
 
 @tool
-async def notion_search(query: str, limit: int = 10) -> str:
-    """Notion 워크스페이스 페이지 검색. 중복 회피 및 기존 내용 확인용."""
-    return _trim(await _notion_search(query, limit))
+def vault_search(query: str, limit: int = 10) -> str:
+    """Obsidian vault 의 기존 노트 검색. 중복 회피 및 기존 내용 확인용."""
+    return _trim(_vault_search(query, limit))
 
 
 @tool
-async def notion_create_page(title: str, content: str, icon: str = "📋") -> str:
-    """NOTION_PARENT_PAGE_ID 하위에 마크다운 콘텐츠로 새 페이지 생성. 마크다운 자동 변환."""
-    return await _notion_create_page(title, content, icon)
+def vault_save(title: str, content: str, category: str = "", tags: str = "") -> str:
+    """Obsidian vault 에 마크다운 노트(.md) 저장. category=분류 폴더, tags=쉼표 구분.
+    YAML 프론트매터(title/date/tags/source) 자동 추가. 저장 경로를 반환."""
+    return _vault_save(title, content, category, tags)
 
 
-TOOLS = [read_file, write_file, bash, recent_research, notion_search, notion_create_page]
+TOOLS = [read_file, write_file, bash, recent_research, vault_search, vault_save]

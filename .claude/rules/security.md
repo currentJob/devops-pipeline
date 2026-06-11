@@ -4,7 +4,7 @@
 
 ## 시크릿 관리
 
-- [ ] `CLAUDE_API_KEY`, `TELEGRAM_TOKEN`, `NOTION_TOKEN`, `BRAVE_API_KEY` 하드코딩 없음
+- [ ] `CLAUDE_API_KEY`, `TELEGRAM_TOKEN`, `GITHUB_TOKEN`, `BRAVE_API_KEY` 하드코딩 없음
 - [ ] `.env` 파일이 `.gitignore` 에 포함되어 있음
 - [ ] 로그·알림 메시지에 토큰/키가 노출되지 않음
 
@@ -22,11 +22,12 @@
 ## aiohttp / 외부 요청
 
 - [ ] 모든 외부 요청에 `timeout=aiohttp.ClientTimeout(total=N)` 설정
-- [ ] Notion API, Brave Search API 응답 상태 코드 검증
+- [ ] Brave Search API 응답 상태 코드 검증
 
 ## 파일 쓰기
 
 - [ ] `write_file` 은 `prompts/output/` 하위에만 쓰도록 제한
+- [ ] `vault_save` 는 `vault/`(VAULT_SUBDIR) 하위에만 쓰도록 제한 — 제목/카테고리 traversal 차단
 - [ ] `data/tasks.db` 는 컨테이너 볼륨 관리 — 직접 수정 금지
 
 ## Docker

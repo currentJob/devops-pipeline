@@ -17,9 +17,9 @@ TELEGRAM_CHAT_ID: int = int(_require("TELEGRAM_CHAT_ID"))
 CLAUDE_API_KEY: str = os.environ.get("CLAUDE_API_KEY", "")
 APPROVAL_TIMEOUT: int = int(os.environ.get("APPROVAL_TIMEOUT", "300"))
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
-# Notion 통합 (선택 — /stack 명령어에서 사용)
-NOTION_TOKEN: str = os.environ.get("NOTION_TOKEN", "")
-NOTION_PARENT_PAGE_ID: str = os.environ.get("NOTION_PARENT_PAGE_ID", "")
+# Obsidian vault — 지식/트렌드 노트 저장 폴더 (WORKSPACE 기준 하위 경로)
+# 워커가 /workspace/<VAULT_SUBDIR> 에 .md 노트를 쓰고, 이 폴더를 Obsidian 으로 열어 관리.
+VAULT_SUBDIR: str = os.environ.get("VAULT_SUBDIR", "vault")
 # RAG 웹 검색 (선택 — Brave Search API 키, https://brave.com/search/api/)
 BRAVE_API_KEY: str = os.environ.get("BRAVE_API_KEY", "")
 # 최신 자료 조사 (last30days 스킬) — 에이전트가 시의성 있는 주제에 호출하는 recent_research 도구

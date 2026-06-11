@@ -149,7 +149,7 @@ def build_findings_text(audit: dict, max_pkgs: int = 30) -> str:
 
 
 def build_report_markdown(audit: dict, analysis_summary: str) -> str:
-    """저장/Notion 업로드용 교정 리포트 마크다운."""
+    """저장용 교정 리포트 마크다운."""
     today = datetime.date.today().strftime("%Y-%m-%d")
     return "\n".join(
         [

@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -11,7 +10,6 @@ from telegram.ext import Application
 
 from app import config
 from app.bot import notifier
-from app.notion import client as notion_client
 from app.pipeline import security_audit
 
 logger = logging.getLogger(__name__)
@@ -120,35 +118,19 @@ async def step_analyze(app: Application, audit: dict) -> PipelineResult:
 
 
 async def step_execute(app: Application, audit: dict, analysis: dict) -> PipelineResult:
-    """3단계: 교정 리포트 생성 → 파일 저장 + (설정 시) Notion 업로드."""
+    """3단계: 교정 리포트 생성 → 파일 저장."""
     logger.info("[3단계] 교정 리포트 생성")
 
     report = security_audit.build_report_markdown(audit, analysis["summary"])
     saved_path = security_audit.save_report(report)
 
-    notion_url: str | None = None
-    if config.NOTION_TOKEN and config.NOTION_PARENT_PAGE_ID:
-        today = datetime.date.today().strftime("%Y-%m-%d")
-        res = await notion_client.create_page(
-            config.NOTION_TOKEN,
-            config.NOTION_PARENT_PAGE_ID,
-            f"의존성 보안 감사 — {today}",
-            report,
-            "🛡️",
-        )
-        notion_url = res.get("url")
-        if res.get("error"):
-            logger.warning("Notion 업로드 실패: %s", res["error"])
-
     msg = f"✅ *3단계 완료*: 교정 리포트 생성\n📄 `{saved_path}`"
-    if notion_url:
-        msg += f"\n📝 Notion: {notion_url}"
     await notifier.send_message(app, msg)
-    logger.info("[3단계] 완료: path=%s notion=%s", saved_path, notion_url)
+    logger.info("[3단계] 완료: path=%s", saved_path)
     return PipelineResult(
         step="execute",
         status=StepStatus.APPROVED,
-        data={"report_path": saved_path, "notion_url": notion_url},
+        data={"report_path": saved_path},
     )
 
 
