@@ -43,6 +43,10 @@ exclude = [
     "vendor",  # 외부 last30days 스킬 스크립트 — 린트/포맷 대상 제외
 ]
 
+[tool.ruff.format]
+# 줄바꿈을 LF 로 고정 — .gitattributes(eol=lf)와 일치. auto 의 플랫폼별 비결정성 제거.
+line-ending = "lf"
+
 [tool.ruff.lint]
 # 균형 잡힌 2026 기본값: pycodestyle(E) + pyflakes(F) + isort(I) + bugbear(B)
 # + pyupgrade(UP) + simplify(SIM)

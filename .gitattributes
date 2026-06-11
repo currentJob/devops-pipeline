@@ -1,0 +1,14 @@
+# 모든 텍스트 파일을 LF 로 정규화 — Windows(autocrlf)에서 편집해도 줄바꿈 일관 유지.
+# ruff format(line-ending=lf) 의 CI 산발적 실패(줄바꿈 혼재) 재발 방지.
+* text=auto eol=lf
+
+# 바이너리 (정규화 제외)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mp3 binary
+
+# vendored 서드파티(last30days) — 원본 그대로 보존, 줄바꿈 정규화 제외 (ruff 대상도 아님)
+vendor/** -text
