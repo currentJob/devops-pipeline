@@ -28,7 +28,15 @@ from langgraph.prebuilt import create_react_agent
 from typing_extensions import TypedDict
 
 from app import config
-from app.agent.tools import TOOLS, bash, notion_create_page, notion_search, read_file, write_file
+from app.agent.tools import (
+    TOOLS,
+    bash,
+    notion_create_page,
+    notion_search,
+    read_file,
+    recent_research,
+    write_file,
+)
 from app.rag.retriever import retrieve_context
 from app.worker import store
 
@@ -202,10 +210,11 @@ _CODE_PROMPT = """당신은 코드 품질 분석 전문 에이전트입니다.
 - 수정 제안은 prompts/output/ 에 write_file 로 저장."""
 
 _DOC_PROMPT = """당신은 기술 문서 작성 전문 에이전트입니다.
-도구: read_file, write_file, notion_search, notion_create_page
+도구: read_file, write_file, recent_research, notion_search, notion_create_page
 
 - README·API 문서·아키텍처 설명·온보딩 가이드 작성
 - read_file 로 코드 확인 후 한국어로 문서화
+- 최신 동향·버전·생태계 현황이 필요하면 recent_research 로 최근 자료를 먼저 수집해 반영
 - 결과물은 write_file 저장 또는 notion_create_page 로 Notion 업로드 (요청에 따라 선택)."""
 
 _INFRA_PROMPT = """당신은 인프라/DevOps 전문 에이전트입니다.
@@ -216,17 +225,20 @@ _INFRA_PROMPT = """당신은 인프라/DevOps 전문 에이전트입니다.
 - 변경 권고는 write_file 로 prompts/output/ 에 저장하고 사용자가 직접 적용하도록 안내."""
 
 _STACK_PROMPT = """당신은 IT 트렌드 리서치 전문 에이전트입니다.
-도구: notion_search, notion_create_page
+도구: recent_research, notion_search, notion_create_page
 
 - notion_search 로 기존 페이지를 확인하여 중복 방지
-- 현재 시점 기술 트렌드를 선정하고 채택률·성숙도 포함하여 마크다운 작성
+- 트렌드 선정 전 recent_research 로 최근 한 달간 실제 커뮤니티 반응·채택 신호를 수집하라.
+  학습 지식만으로 추측하지 말고, 조사 결과의 출처를 근거로 현재 시점 채택률·성숙도를 작성.
 - notion_create_page 는 **정확히 한 번만** 호출하라. 성공 응답(JSON 에 "url" 포함)을 받으면
   즉시 그 URL 만 응답하고, 추가 도구 호출을 절대 하지 마라 (중복 페이지 생성 금지)."""
 
 _GENERAL_PROMPT = """당신은 DevOps/IaC 자동화 어시스턴트입니다.
-도구: read_file, write_file, bash, notion_search, notion_create_page
+도구: read_file, write_file, bash, recent_research, notion_search, notion_create_page
 
 - 추측 금지 — 도구로 사실 확인 후 응답
+- 시점에 민감하거나(최신 동향·요즘·최근) 학습 지식으로 답하기 어려운 주제는
+  recent_research 로 최근 한 달 자료를 조사한 뒤 출처와 함께 답하라
 - 코드 변경이 필요하면 prompts/output/ 에 권고 문서 작성 후 수동 적용 안내
 - [참고 문서] 블록이 제공된 경우 최우선 근거로 활용"""
 
@@ -240,10 +252,13 @@ _AGENT_CONFIG: dict[str, dict] = {
     Route.CODE: {"prompt": _CODE_PROMPT, "tools": [bash, read_file, write_file]},
     Route.DOC: {
         "prompt": _DOC_PROMPT,
-        "tools": [read_file, write_file, notion_search, notion_create_page],
+        "tools": [read_file, write_file, recent_research, notion_search, notion_create_page],
     },
     Route.INFRA: {"prompt": _INFRA_PROMPT, "tools": [bash, read_file, write_file]},
-    Route.STACK: {"prompt": _STACK_PROMPT, "tools": [notion_search, notion_create_page]},
+    Route.STACK: {
+        "prompt": _STACK_PROMPT,
+        "tools": [recent_research, notion_search, notion_create_page],
+    },
     Route.GENERAL: {"prompt": _GENERAL_PROMPT, "tools": TOOLS},
 }
 

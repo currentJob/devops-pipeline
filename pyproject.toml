@@ -40,6 +40,7 @@ exclude = [
     "build",
     "dist",
     "logs",
+    "vendor",  # 외부 last30days 스킬 스크립트 — 린트/포맷 대상 제외
 ]
 
 [tool.ruff.lint]

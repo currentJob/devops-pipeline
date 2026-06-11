@@ -31,5 +31,7 @@ ENV PYTHONUNBUFFERED=1
 
 # 소스 복사
 COPY app/ ./app/
+# vendored last30days 스킬 — recent_research 도구가 호출하는 CLI (서드파티 의존성 없음)
+COPY vendor/ ./vendor/
 
 CMD ["python", "-m", "app.main"]

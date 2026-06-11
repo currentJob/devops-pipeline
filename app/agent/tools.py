@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from app.tools.filesystem import read_file as _read_file
 from app.tools.filesystem import write_file as _write_file
 from app.tools.notion import _notion_create_page, _notion_search
+from app.tools.research import recent_research as _recent_research
 from app.tools.shell import bash as _bash
 
 # 도구 결과를 잘라 ReAct 컨텍스트 누적 폭증을 억제 (작은 컨텍스트 모델 보호)
@@ -38,6 +39,14 @@ async def bash(command: str) -> str:
 
 
 @tool
+async def recent_research(topic: str) -> str:
+    """최신 자료 조사 — Reddit·Hacker News 등에서 최근 한 달 게시물/반응을 수집한다.
+    '최신 트렌드', '요즘', '최근 동향', 채택률·평판 등 시점에 민감하거나 학습 지식으로
+    답하기 어려운 주제에만 사용하라. 출력의 출처 URL 을 근거로 인용할 것."""
+    return await _recent_research(topic)
+
+
+@tool
 async def notion_search(query: str, limit: int = 10) -> str:
     """Notion 워크스페이스 페이지 검색. 중복 회피 및 기존 내용 확인용."""
     return _trim(await _notion_search(query, limit))
@@ -49,4 +58,4 @@ async def notion_create_page(title: str, content: str, icon: str = "📋") -> st
     return await _notion_create_page(title, content, icon)
 
 
-TOOLS = [read_file, write_file, bash, notion_search, notion_create_page]
+TOOLS = [read_file, write_file, bash, recent_research, notion_search, notion_create_page]

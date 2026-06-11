@@ -22,6 +22,17 @@ NOTION_TOKEN: str = os.environ.get("NOTION_TOKEN", "")
 NOTION_PARENT_PAGE_ID: str = os.environ.get("NOTION_PARENT_PAGE_ID", "")
 # RAG 웹 검색 (선택 — Brave Search API 키, https://brave.com/search/api/)
 BRAVE_API_KEY: str = os.environ.get("BRAVE_API_KEY", "")
+# 최신 자료 조사 (last30days 스킬) — 에이전트가 시의성 있는 주제에 호출하는 recent_research 도구
+# 비활성 시 도구는 에이전트에 노출되지 않음. Reddit/HN 은 키 없이 동작.
+RESEARCH_ENABLED: bool = os.environ.get("RESEARCH_ENABLED", "true").lower() == "true"
+# 조회 소스 (쉼표 구분). 키리스 기본값. X/YouTube 등은 해당 API 키 설정 시 추가 가능.
+RESEARCH_SOURCES: str = os.environ.get("RESEARCH_SOURCES", "reddit,hackernews")
+# 조회 기간(일)
+RESEARCH_DAYS: int = int(os.environ.get("RESEARCH_DAYS", "30"))
+# CLI 1회 실행 타임아웃(초) — 워커 전체 타임아웃보다 작게 유지
+RESEARCH_TIMEOUT_S: float = float(os.environ.get("RESEARCH_TIMEOUT_S", "90"))
+# vendored last30days.py 경로 재정의 (빈 값이면 리포 내 vendor/ 기본 경로 사용)
+RESEARCH_SCRIPT: str = os.environ.get("RESEARCH_SCRIPT", "")
 # 워커 에이전트 튜닝
 WORKER_BOT_NOTIFY_URL: str = os.environ.get("BOT_NOTIFY_URL", "http://bot:8765/notify")
 WORKER_BOT_RESULT_URL: str = os.environ.get("BOT_RESULT_URL", "http://bot:8765/worker-result")
