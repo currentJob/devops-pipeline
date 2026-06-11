@@ -250,6 +250,21 @@ async def _handle_git_push(request: web.Request) -> web.Response:
     return _json({"ready": True, "branch": branch, "pending": preview})
 
 
+async def _handle_vault_reindex(_request: web.Request) -> web.Response:
+    """vault 의 모든 .md 노트를 벡터 인덱스에 재인덱싱."""
+    from app.rag import vault_index
+    from app.tools import filesystem
+
+    vault_dir = filesystem.WORKSPACE / config.VAULT_SUBDIR
+    if not vault_dir.is_dir():
+        return _json({"ok": False, "detail": "vault 폴더 없음"}, status=404)
+    # 임베딩+네트워크는 동기·블로킹 → 이벤트 루프 밖 스레드에서 실행
+    count = await asyncio.to_thread(vault_index.index_all, vault_dir)
+    if count is None:
+        return _json({"ok": False, "detail": "벡터 인덱스 미가용 (Qdrant 연결 실패)"}, status=503)
+    return _json({"ok": True, "indexed": count})
+
+
 async def _handle_health(_request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
@@ -270,6 +285,7 @@ async def main() -> None:
     app.router.add_post("/run", _handle_run)
     app.router.add_post("/git/commit", _handle_git_commit)
     app.router.add_post("/git/push", _handle_git_push)
+    app.router.add_post("/vault/reindex", _handle_vault_reindex)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
     app.router.add_get("/metrics", metrics.handle_metrics)

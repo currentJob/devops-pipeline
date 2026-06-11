@@ -20,6 +20,17 @@ LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
 # Obsidian vault — 지식/트렌드 노트 저장 폴더 (WORKSPACE 기준 하위 경로)
 # 워커가 /workspace/<VAULT_SUBDIR> 에 .md 노트를 쓰고, 이 폴더를 Obsidian 으로 열어 관리.
 VAULT_SUBDIR: str = os.environ.get("VAULT_SUBDIR", "vault")
+# 벡터 인덱스 (Qdrant + fastembed 로컬 ONNX 임베딩) — vault 노트 의미 기반 검색.
+# 미가용(Qdrant 연결 실패/비활성) 시 vault_search 는 키워드 검색으로 폴백한다.
+VAULT_INDEX_ENABLED: bool = os.environ.get("VAULT_INDEX_ENABLED", "true").lower() == "true"
+QDRANT_URL: str = os.environ.get("QDRANT_URL", "http://qdrant:6333")
+QDRANT_COLLECTION: str = os.environ.get("QDRANT_COLLECTION", "vault")
+# fastembed ONNX 임베딩 모델 (다국어 — 한국어 지원). 변경 시 컬렉션 재인덱싱 필요.
+EMBED_MODEL: str = os.environ.get(
+    "EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+)
+# Qdrant 클라이언트 요청 타임아웃(초) — 미가용 시 빠른 폴백을 위해 짧게.
+QDRANT_TIMEOUT_S: float = float(os.environ.get("QDRANT_TIMEOUT_S", "3"))
 # RAG 웹 검색 (선택 — Brave Search API 키, https://brave.com/search/api/)
 BRAVE_API_KEY: str = os.environ.get("BRAVE_API_KEY", "")
 # 최신 자료 조사 (last30days 스킬) — 에이전트가 시의성 있는 주제에 호출하는 recent_research 도구
@@ -45,6 +56,9 @@ WORKER_HEALTH_URL: str = os.environ.get("WORKER_HEALTH_URL", "http://worker:8766
 WORKER_TASKS_URL: str = os.environ.get("WORKER_TASKS_URL", "http://worker:8766/tasks")
 WORKER_COMMIT_URL: str = os.environ.get("WORKER_COMMIT_URL", "http://worker:8766/git/commit")
 WORKER_PUSH_URL: str = os.environ.get("WORKER_PUSH_URL", "http://worker:8766/git/push")
+WORKER_VAULT_REINDEX_URL: str = os.environ.get(
+    "WORKER_VAULT_REINDEX_URL", "http://worker:8766/vault/reindex"
+)
 WORKER_MAX_CONCURRENT: int = int(os.environ.get("WORKER_MAX_CONCURRENT", "3"))
 WORKER_QUEUE_SIZE: int = int(os.environ.get("WORKER_QUEUE_SIZE", "50"))
 # 새 작업 시 참조할 직전 작업 요약본 개수 (0 = 비활성)

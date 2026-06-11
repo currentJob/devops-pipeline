@@ -75,11 +75,27 @@ def vault_save(title: str, content: str, category: str = "", tags: str = "") -> 
 
     path.write_text(document, encoding="utf-8")
     rel = path.relative_to(filesystem.WORKSPACE)
+
+    # 벡터 인덱스에 best-effort 반영 (미가용 시 무시 — 키워드 검색은 계속 동작)
+    from app.rag import vault_index
+
+    vault_index.index_note(path.relative_to(_vault_dir()).as_posix(), title, document)
+
     return f"저장 완료: {rel.as_posix()}"
 
 
 def vault_search(query: str, limit: int = 10) -> str:
-    """vault 의 기존 노트를 키워드로 검색 (파일명+본문). 중복 회피용. 매칭 목록 반환."""
+    """vault 노트 검색. 벡터 의미 검색 우선, 미가용/무결과 시 키워드 검색 폴백."""
+    from app.rag import vault_index
+
+    semantic = vault_index.semantic_search(query, limit)
+    if semantic:
+        return semantic
+    return _keyword_search(query, limit)
+
+
+def _keyword_search(query: str, limit: int = 10) -> str:
+    """vault 의 기존 노트를 키워드로 검색 (파일명+본문). 의미 검색 폴백용."""
     vault = _vault_dir()
     if not vault.is_dir():
         return "기존 노트 없음 (vault 비어 있음)"

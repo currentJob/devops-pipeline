@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import pytest
 
+from app import config
 from app.tools import filesystem, obsidian
 
 
 @pytest.fixture(autouse=True)
 def _temp_vault(tmp_path, monkeypatch):
     monkeypatch.setattr(filesystem, "WORKSPACE", tmp_path)
+    # 벡터 인덱스 비활성 → vault_search 는 키워드, vault_save 인덱싱은 no-op (네트워크 없이 격리)
+    monkeypatch.setattr(config, "VAULT_INDEX_ENABLED", False)
     return tmp_path / "vault"
 
 

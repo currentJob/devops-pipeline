@@ -52,8 +52,9 @@ async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         "*Git*\n"
         "`/commit` 변경 내역으로 커밋 메시지 생성 → 확인 후 로컬 커밋\n"
         "`/push` 현재 브랜치를 origin 으로 push (확인 후, GITHUB\\_TOKEN 필요)\n\n"
-        "*트렌드 리서치*\n"
-        "`/stack` IT 트렌드 조사 → 중복 회피 → Obsidian vault 노트 생성",
+        "*트렌드 리서치 / 지식*\n"
+        "`/stack` IT 트렌드 조사 → 중복 회피 → Obsidian vault 노트 생성\n"
+        "`/reindex` vault 노트를 벡터 인덱스에 재인덱싱",
         parse_mode="Markdown",
     )
 

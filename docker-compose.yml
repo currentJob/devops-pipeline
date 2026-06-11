@@ -7,6 +7,7 @@ volumes:
   prometheus-data:
   grafana-data:
   postgres-data:
+  qdrant-data:
 
 services:
   bot:
@@ -45,6 +46,10 @@ services:
     command: ["python", "-m", "app.worker.server"]
     env_file: .env
     restart: unless-stopped
+    environment:
+      # 벡터 인덱스(Qdrant) — 내부 네트워크. fastembed 모델 캐시는 쓰기 가능한 data 볼륨에.
+      - QDRANT_URL=http://qdrant:6333
+      - FASTEMBED_CACHE_PATH=/app/data/.fastembed
     expose:
       - "8766"
     volumes:
@@ -55,6 +60,9 @@ services:
       - ./:/workspace:rw
     networks:
       - pipeline-net
+    depends_on:
+      qdrant:
+        condition: service_started
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -66,6 +74,18 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # ── Qdrant 벡터 DB ───────────────────────────────────────────────────────────
+  # vault 노트 의미 검색용. 내부 네트워크 전용(호스트 미노출). 영속 볼륨 사용.
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    restart: unless-stopped
+    expose:
+      - "6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - pipeline-net
 
   # ── PostgreSQL (선택) ────────────────────────────────────────────────────────
   # 사용: docker compose --profile postgres up

@@ -80,6 +80,30 @@ async def cmd_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _dispatch_to_worker(update, f"[PLAN_TASK] {description}", save_to_vault=True)
 
 
+async def cmd_reindex(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/reindex` — vault 노트를 벡터 인덱스에 재인덱싱."""
+    if not _authorized(update):
+        return
+    await update.message.reply_text("🔄 vault 벡터 재인덱싱 중...")
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                config.WORKER_VAULT_REINDEX_URL,
+                timeout=aiohttp.ClientTimeout(total=180),
+            ) as resp,
+        ):
+            data = await resp.json()
+    except aiohttp.ClientError as e:
+        await update.message.reply_text(f"🔴 워커 연결 실패: {e}")
+        return
+
+    if data.get("ok"):
+        await update.message.reply_text(f"✅ 재인덱싱 완료 — {data['indexed']}개 노트")
+    else:
+        await update.message.reply_text(f"⚠️ 재인덱싱 실패: {data.get('detail', '알 수 없음')}")
+
+
 async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     """`/history` — 최근 작업 이력 조회."""
     if not _authorized(update):
