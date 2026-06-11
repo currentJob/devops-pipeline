@@ -18,10 +18,13 @@ FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
-# git: /commit 명령이 워커에서 로컬 git 커밋을 수행하는 데 필요 (push 미사용)
+# git: /commit·/diff·/push 가 워커에서 로컬 git 을 사용
+# safe.directory: /workspace 는 호스트 소유 bind-mount 라 git 이 dubious ownership 으로
+#   거부함 → system 레벨(/etc/gitconfig)로 예외 등록. read-only FS 에서도 읽기만 하면 됨.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && git config --system --add safe.directory /workspace
 
 # 보안: root 아닌 전용 유저로 실행
 RUN useradd --create-home --no-log-init appuser
