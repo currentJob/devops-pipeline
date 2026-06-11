@@ -5,9 +5,13 @@ WORKDIR /build
 
 RUN pip install --no-cache-dir uv
 
-COPY pyproject.toml .
-# 의존성만 먼저 설치 (캐시 활용)
-RUN uv sync --no-dev --no-install-project
+# 느린 PyPI 응답에 대한 내성 (기본 30s → 120s). uv 는 실패 시 자동 재시도.
+ENV UV_HTTP_TIMEOUT=120
+
+# lock 파일까지 복사해 --frozen 으로 재현 가능 설치 (CI 와 동일, 재해석 네트워크 부하 감소)
+COPY pyproject.toml uv.lock ./
+# 의존성만 먼저 설치 (레이어 캐시 활용)
+RUN uv sync --frozen --no-dev --no-install-project
 
 # ── 실행 스테이지 ─────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
