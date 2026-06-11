@@ -29,3 +29,10 @@ prompts/output/
 
 # SQLite 작업 이력 DB (컨테이너 볼륨)
 data/*.db
+
+# fastembed 임베딩 모델 캐시 (컨테이너 볼륨)
+data/.fastembed/
+
+# Obsidian — 머신별 UI 상태만 제외 (공유 설정 app/appearance/graph 는 추적 유지)
+vault/.obsidian/workspace.json
+vault/.obsidian/workspace-mobile.json
