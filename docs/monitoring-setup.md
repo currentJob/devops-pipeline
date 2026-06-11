@@ -12,6 +12,16 @@
 
 > 모든 포트는 `127.0.0.1` 바인딩이라 **같은 PC 에서만** 접속됩니다.
 
+**데이터소스·대시보드는 자동 프로비저닝**됩니다(아래 *자동 대시보드* 참고). 수집 대상:
+- **worker** (앱 사용량: 작업 처리율·지연·라우트/백엔드별 사용량)
+- **vLLM** (추론 지표) · **Qdrant** (벡터 DB) · **cAdvisor/node-exporter** (컨테이너·호스트 리소스)
+- **Postgres** (Task 이력 DB — 작업 로그). DB 대시보드는 `--profile postgres` 동시 실행 시 동작.
+
+리소스·DB 패널까지 모두 보려면:
+```powershell
+docker compose --profile monitoring --profile postgres --profile vllm up -d
+```
+
 ---
 
 ## 0. 사전 점검 — 컨테이너 상태
@@ -163,19 +173,25 @@ Telegram 에서 봇에게 작업을 시키면 위 지표가 움직입니다:
 
 ---
 
-## 7. 워커 대시보드 만들기
+## 7. 자동 프로비저닝된 대시보드
 
-1. **Dashboards → New → New dashboard → Add visualization** → 데이터소스 `Prometheus`.
-2. 패널별 쿼리(위 6-2)를 입력하고 시각화 타입 지정:
+별도로 만들 필요 없이, Grafana 좌측 **Dashboards** → `devops-pipeline` 태그에 3개가 자동 등록됩니다
+([provisioning/dashboards](../monitoring/grafana/provisioning/dashboards/)):
 
-| 패널 | 쿼리 | 타입 |
-|------|------|------|
-| 처리 중 작업 | `worker_inflight` | Stat / Gauge |
-| 대기 큐 | `worker_queue_size` | Stat |
-| 완료율 | `sum by (status) (rate(worker_tasks_total[5m]))` | Time series |
-| p95 처리시간 | `histogram_quantile(0.95, rate(worker_task_duration_seconds_bucket[5m]))` | Time series |
+| 대시보드 | 내용 | 필요 데이터소스 |
+|----------|------|-----------------|
+| **DevOps Pipeline — 개요** | 처리율·지연·성공률, 라우트/백엔드별 사용량, Qdrant, vLLM | Prometheus |
+| **작업 로그(DB)** | 상태 분포·시간별 처리량·최근 작업 50건 테이블 | Postgres (`--profile postgres`) |
+| **시스템 리소스** | 컨테이너 CPU/메모리/네트워크, 호스트 CPU/메모리 | Prometheus (cAdvisor·node-exporter) |
 
-3. 우상단 **Save dashboard**.
+- 라우트/백엔드 사용량 패널은 워커가 `worker_route_total` / `worker_route_duration_seconds`
+  지표를 노출합니다(라우트별 작업 수·지연, 백엔드 vLLM/Claude 분해).
+- **작업 로그(DB)** 대시보드는 `Postgres` 데이터소스를 쓰므로 `--profile postgres` +
+  `.env` 의 `DB_BACKEND=postgres` 로 워커가 같은 DB 를 사용해야 데이터가 채워집니다.
+- 대시보드 JSON 을 고치려면 Grafana UI 에서 편집 → *Export* 후 위 경로 파일을 교체하세요.
+
+> Docker Desktop(Windows/Mac)에서 cAdvisor·node-exporter 는 **Linux VM 기준**으로 측정됩니다
+> (호스트 Windows 자원이 아님). 컨테이너별 사용량은 정상 표시됩니다.
 
 ---
 

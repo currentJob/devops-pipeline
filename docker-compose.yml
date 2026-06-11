@@ -193,6 +193,13 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=http://localhost:3000
+      # Postgres 데이터소스 프로비저닝(provisioning/datasources/postgres.yml)이 참조.
+      # Task 이력 DB 패널은 --profile postgres 동시 실행 시 동작.
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-tasks}
+      - POSTGRES_USER=${POSTGRES_USER:-pipeline}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
     depends_on:
       prometheus:
         condition: service_healthy
@@ -201,3 +208,40 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # ── 리소스 메트릭 (선택, monitoring 프로필) ───────────────────────────────────
+  # cAdvisor: 컨테이너별 CPU/메모리/네트워크. node-exporter: 호스트 시스템 지표.
+  # Docker Desktop(Windows/Mac)에서는 Linux VM 기준으로 측정됨.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    privileged: true
+    expose:
+      - "8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - pipeline-net
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    expose:
+      - "9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - pipeline-net

@@ -19,6 +19,25 @@ scrape_configs:
     metrics_path: /metrics
     scrape_interval: 30s
 
+  # Qdrant 벡터 DB metrics
+  - job_name: qdrant
+    static_configs:
+      - targets: ["qdrant:6333"]
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # 컨테이너 리소스 (cAdvisor) — CPU/메모리/네트워크 per-container
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    scrape_interval: 30s
+
+  # 호스트 시스템 (node-exporter)
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+    scrape_interval: 30s
+
   # Prometheus self-monitoring
   - job_name: prometheus
     static_configs:

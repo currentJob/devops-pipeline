@@ -25,6 +25,17 @@ INFLIGHT = Gauge("worker_inflight", "현재 처리 중인 작업 수")
 # 대기 큐 길이
 QUEUE_SIZE = Gauge("worker_queue_size", "대기 큐에 쌓인 작업 수")
 
+# 라우트·백엔드별 처리 작업 수 (사용량 분해 — code/doc/infra/stack/general × vLLM/Claude)
+ROUTE_TOTAL = Counter("worker_route_total", "라우트별 처리 작업 수", ["route", "backend"])
+
+# 라우트별 전문 에이전트(ReAct) 실행 시간(초)
+ROUTE_DURATION = Histogram(
+    "worker_route_duration_seconds",
+    "라우트별 처리 시간(초)",
+    ["route"],
+    buckets=(1, 2, 5, 10, 30, 60, 120, 300),
+)
+
 
 async def handle_metrics(_request: web.Request) -> web.Response:
     """Prometheus 노출 포맷으로 현재 지표를 반환."""

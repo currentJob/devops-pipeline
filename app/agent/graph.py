@@ -38,7 +38,7 @@ from app.agent.tools import (
     write_file,
 )
 from app.rag.retriever import retrieve_context
-from app.worker import store
+from app.worker import metrics, store
 
 logger = logging.getLogger(__name__)
 
@@ -318,13 +318,16 @@ async def _run_react(task_id: str, description: str, rag_context: str, route: st
         cfg["tools"],
         prompt=SystemMessage(content=_dated(cfg["prompt"])),
     )
-    result = await agent.ainvoke(
-        {"messages": [HumanMessage(content=augmented)]},
-        config={
-            "recursion_limit": config.WORKER_MAX_ITERATIONS * 2 + 2,
-            "callbacks": [_ToolNotifyHandler(task_id)],
-        },
-    )
+    # 라우트·백엔드별 사용량/지연 계측 (Grafana 대시보드용)
+    metrics.ROUTE_TOTAL.labels(route=route, backend=_route_backend_label(route)).inc()
+    with metrics.ROUTE_DURATION.labels(route=route).time():
+        result = await agent.ainvoke(
+            {"messages": [HumanMessage(content=augmented)]},
+            config={
+                "recursion_limit": config.WORKER_MAX_ITERATIONS * 2 + 2,
+                "callbacks": [_ToolNotifyHandler(task_id)],
+            },
+        )
     last = result["messages"][-1]
     return last.content if hasattr(last, "content") else str(last)
 

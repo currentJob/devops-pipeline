@@ -1,0 +1,20 @@
+apiVersion: 1
+
+# Task 이력 DB (Postgres) — 작업 로그 패널용.
+# docker compose --profile monitoring --profile postgres 동시 실행 시 동작.
+# 환경변수는 docker-compose grafana 서비스에서 주입(POSTGRES_*).
+datasources:
+  - name: Postgres
+    type: postgres
+    uid: postgres
+    access: proxy
+    url: $POSTGRES_HOST:$POSTGRES_PORT
+    user: $POSTGRES_USER
+    database: $POSTGRES_DB
+    secureJsonData:
+      password: $POSTGRES_PASSWORD
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false
+    editable: false
