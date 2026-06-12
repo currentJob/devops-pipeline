@@ -251,8 +251,8 @@ async def _handle_git_push(request: web.Request) -> web.Response:
 
 
 async def _handle_vault_reindex(_request: web.Request) -> web.Response:
-    """vault 의 모든 .md 노트를 벡터 인덱스에 재인덱싱."""
-    from app.rag import vault_index
+    """vault 의 모든 .md 노트를 벡터 인덱스에 재인덱싱하고 MOC/Dashboard 를 갱신."""
+    from app.rag import moc, vault_index
     from app.tools import filesystem
 
     vault_dir = filesystem.WORKSPACE / config.VAULT_SUBDIR
@@ -263,7 +263,9 @@ async def _handle_vault_reindex(_request: web.Request) -> web.Response:
     if count is None:
         cause = vault_index.last_error() or "원인 미상 (워커 로그 확인)"
         return _json({"ok": False, "detail": f"벡터 인덱스 미가용 — {cause}"}, status=503)
-    return _json({"ok": True, "indexed": count})
+    # MOC/Dashboard 재생성 (인덱스와 무관하게 동작 — 실패해도 인덱싱 결과는 유효)
+    moc_count = await asyncio.to_thread(moc.build_moc, vault_dir)
+    return _json({"ok": True, "indexed": count, "moc": moc_count})
 
 
 async def _handle_health(_request: web.Request) -> web.Response:
@@ -275,6 +277,30 @@ async def _handle_selfcheck(_request: web.Request) -> web.Response:
     checks = await selfcheck.run_checks()
     all_ok = all(c["ok"] for c in checks)
     return _json({"ok": all_ok, "checks": checks}, status=200 if all_ok else 503)
+
+
+async def _handle_digest(_request: web.Request) -> web.Response:
+    """최근 vault 노트를 요약한 주간 브리핑 노트를 즉시 생성 (봇 /digest)."""
+    from app.worker import digest
+
+    result = await digest.generate_digest()
+    ok = result.startswith("저장 완료")
+    return _json({"ok": ok, "detail": result}, status=200 if ok else 500)
+
+
+async def _digest_loop() -> None:
+    """DIGEST_ENABLED 시 주기적으로 다이제스트를 생성하고 봇에 알림 (어떤 실패에도 루프 지속)."""
+    from app.agent import runtime
+    from app.worker import digest
+
+    interval = max(1, config.DIGEST_INTERVAL_DAYS) * 86400
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            result = await digest.generate_digest()
+            await runtime._notify(f"🗞️ 주간 브리핑 생성: {result}")
+        except Exception as e:  # noqa: BLE001 — 스케줄 루프는 중단되면 안 됨
+            logger.warning("다이제스트 생성 실패: %s", e)
 
 
 async def main() -> None:
@@ -294,6 +320,7 @@ async def main() -> None:
     app.router.add_post("/git/commit", _handle_git_commit)
     app.router.add_post("/git/push", _handle_git_push)
     app.router.add_post("/vault/reindex", _handle_vault_reindex)
+    app.router.add_post("/digest", _handle_digest)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
     app.router.add_get("/selfcheck", _handle_selfcheck)
@@ -304,6 +331,9 @@ async def main() -> None:
     await site.start()
 
     asyncio.create_task(_worker_loop())
+    if config.DIGEST_ENABLED:
+        asyncio.create_task(_digest_loop())
+        logger.info("정기 다이제스트 활성: %d일 주기", config.DIGEST_INTERVAL_DAYS)
 
     logger.info("워커 시작: http://%s:%d", WORKER_HOST, WORKER_PORT)
     logger.info(

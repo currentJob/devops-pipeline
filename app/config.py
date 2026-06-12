@@ -36,6 +36,10 @@ EMBED_THREADS: int = int(os.environ.get("EMBED_THREADS", "1"))
 EMBED_BATCH_SIZE: int = int(os.environ.get("EMBED_BATCH_SIZE", "16"))
 # Qdrant 클라이언트 요청 타임아웃(초) — 미가용 시 빠른 폴백을 위해 짧게.
 QDRANT_TIMEOUT_S: float = float(os.environ.get("QDRANT_TIMEOUT_S", "3"))
+# 정기 다이제스트 — 최근 vault 노트를 요약한 주간 브리핑 노트 자동 생성.
+# opt-in: LLM 호출 비용이 발생하므로 기본 비활성. 활성 시 워커가 주기적으로 생성한다.
+DIGEST_ENABLED: bool = os.environ.get("DIGEST_ENABLED", "false").lower() == "true"
+DIGEST_INTERVAL_DAYS: int = int(os.environ.get("DIGEST_INTERVAL_DAYS", "7"))
 # RAG 웹 검색 (선택 — Brave Search API 키, https://brave.com/search/api/)
 BRAVE_API_KEY: str = os.environ.get("BRAVE_API_KEY", "")
 # 최신 자료 조사 (last30days 스킬) — 에이전트가 시의성 있는 주제에 호출하는 recent_research 도구
@@ -64,6 +68,7 @@ WORKER_PUSH_URL: str = os.environ.get("WORKER_PUSH_URL", "http://worker:8766/git
 WORKER_VAULT_REINDEX_URL: str = os.environ.get(
     "WORKER_VAULT_REINDEX_URL", "http://worker:8766/vault/reindex"
 )
+WORKER_DIGEST_URL: str = os.environ.get("WORKER_DIGEST_URL", "http://worker:8766/digest")
 WORKER_MAX_CONCURRENT: int = int(os.environ.get("WORKER_MAX_CONCURRENT", "3"))
 WORKER_QUEUE_SIZE: int = int(os.environ.get("WORKER_QUEUE_SIZE", "50"))
 # 새 작업 시 참조할 직전 작업 요약본 개수 (0 = 비활성)

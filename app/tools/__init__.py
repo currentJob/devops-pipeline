@@ -17,9 +17,13 @@ _TOOL_HANDLERS: dict[str, Callable] = {
     "write_file": lambda a: write_file(a["path"], a["content"]),
     "bash": lambda a: bash(a["command"]),
     "recent_research": lambda a: recent_research(a["topic"]),
-    "vault_search": lambda a: vault_search(a["query"], int(a.get("limit", 10))),
+    "vault_search": lambda a: vault_search(a["query"], int(a.get("limit", 10)), a.get("tags", "")),
     "vault_save": lambda a: vault_save(
-        a["title"], a["content"], a.get("category", ""), a.get("tags", "")
+        a["title"],
+        a["content"],
+        a.get("category", ""),
+        a.get("tags", ""),
+        a.get("aliases", ""),
     ),
 }
 
@@ -90,14 +94,19 @@ TOOLS_SCHEMA = [
     {
         "name": "vault_search",
         "description": (
-            "Obsidian vault 의 기존 노트를 query 키워드로 검색 (파일명+본문 매칭). "
-            "매칭 노트의 경로+요약 목록을 반환. /stack 등에서 중복 회피용."
+            "Obsidian vault 의 기존 노트를 query 로 의미 검색 (미가용 시 키워드 폴백). "
+            "매칭 노트의 경로+요약 목록을 반환. /stack 등에서 중복 회피용. "
+            "tags 지정 시 해당 계층 태그를 가진 노트로 한정 검색."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
                 "limit": {"type": "integer"},
+                "tags": {
+                    "type": "string",
+                    "description": "계층 태그로 검색 범위 한정 (쉼표 구분, 선택). 예: area/devops, tech/qdrant",
+                },
             },
             "required": ["query"],
         },
@@ -106,16 +115,28 @@ TOOLS_SCHEMA = [
         "name": "vault_save",
         "description": (
             "Obsidian vault 에 마크다운 노트(.md)를 저장. "
-            "title·마크다운 본문(content)·선택적 category(폴더)·tags(쉼표 구분)를 받아 "
-            "YAML 프론트매터(title/date/tags/source)를 자동 추가하고 저장 경로를 반환."
+            "YAML 프론트매터(title/aliases/created/updated/tags/source)를 자동 추가하고 저장 경로를 반환. "
+            "content 본문은 Obsidian 양식을 따른다: 맨 위 `> [!summary] TL;DR` 콜아웃, "
+            "`##` 제목 구조, 강조는 `> [!tip]`·주의는 `> [!warning]` 콜아웃, "
+            "관련 기존 노트는 `[[노트제목]]` 위키링크, 후속 작업은 `- [ ]` 체크박스, 출처는 `[제목](url)`."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
-                "content": {"type": "string", "description": "마크다운 본문"},
+                "content": {"type": "string", "description": "Obsidian 마크다운 본문"},
                 "category": {"type": "string", "description": "분류 폴더명 (선택)"},
-                "tags": {"type": "string", "description": "쉼표 구분 태그 (선택)"},
+                "tags": {
+                    "type": "string",
+                    "description": (
+                        "계층형 중첩 태그를 쉼표로 구분 (선택). "
+                        "예: type/research, area/vector-db, tech/qdrant"
+                    ),
+                },
+                "aliases": {
+                    "type": "string",
+                    "description": "동의어·약어를 쉼표로 구분 (선택). 예: 벡터DB, VectorDB",
+                },
             },
             "required": ["title", "content"],
         },

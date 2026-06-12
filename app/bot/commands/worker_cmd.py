@@ -99,9 +99,36 @@ async def cmd_reindex(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     if data.get("ok"):
-        await update.message.reply_text(f"✅ 재인덱싱 완료 — {data['indexed']}개 노트")
+        moc = data.get("moc")
+        moc_txt = f", MOC/Dashboard {moc}개 갱신" if moc else ""
+        await update.message.reply_text(f"✅ 재인덱싱 완료 — {data['indexed']}개 노트{moc_txt}")
     else:
         await update.message.reply_text(f"⚠️ 재인덱싱 실패: {data.get('detail', '알 수 없음')}")
+
+
+async def cmd_digest(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/digest` — 최근 vault 노트를 요약한 주간 브리핑 노트를 즉시 생성."""
+    if not _authorized(update):
+        return
+    await update.message.reply_text("🗞️ 주간 브리핑 생성 중...")
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                config.WORKER_DIGEST_URL,
+                timeout=aiohttp.ClientTimeout(total=180),
+            ) as resp,
+        ):
+            data = await resp.json()
+    except aiohttp.ClientError as e:
+        await update.message.reply_text(f"🔴 워커 연결 실패: {e}")
+        return
+
+    detail = data.get("detail", "알 수 없음")
+    if data.get("ok"):
+        await update.message.reply_text(f"✅ {detail}")
+    else:
+        await update.message.reply_text(f"⚠️ 브리핑 생성 실패: {detail}")
 
 
 async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:

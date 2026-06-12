@@ -45,6 +45,18 @@ _PREFIX_MAP: dict[str, Route] = {
 
 # ── 에이전트별 시스템 프롬프트 (도구 셋은 app.tools.ROUTE_TOOLS 가 관리) ──────────
 
+# vault_save 로 노트를 남기는 라우트(doc/stack/general)에 공통 적용되는 Obsidian 작성 양식.
+_VAULT_NOTE_FORMAT = """
+[vault_save 노트 양식 — Obsidian]
+vault_save 의 content 는 아래 Obsidian 양식을 따른다:
+- 맨 위에 `> [!summary] TL;DR` 콜아웃으로 핵심 결론 2-3줄
+- `##` 제목으로 구조화하고, 핵심은 `> [!tip]`·주의/한계는 `> [!warning]` 콜아웃으로 강조
+- vault_search 로 찾은 관련 기존 노트는 `## 관련 노트` 섹션에 `[[노트제목]]` 위키링크로 연결
+- 후속 작업·검증 항목이 있으면 `- [ ]` 체크박스로 정리
+- 출처가 있으면 `## 출처` 에 `[제목](url)` 링크로 명시
+- tags 인자: 계층형 중첩 태그를 쉼표로 (예: `type/research, area/vector-db, tech/qdrant`)
+- aliases 인자: 동의어·약어가 있으면 쉼표로 (선택)"""
+
 _CODE_PROMPT = """당신은 코드 품질 분석 전문 에이전트입니다.
 도구: read_file, write_file, bash
 
@@ -87,12 +99,13 @@ _GENERAL_PROMPT = """당신은 DevOps/IaC 자동화 어시스턴트입니다.
 - 코드 변경이 필요하면 prompts/output/ 에 권고 문서 작성 후 수동 적용 안내
 - [참고 문서] 블록이 제공된 경우 최우선 근거로 활용"""
 
+# doc/stack/general 은 vault_save 로 노트를 남기므로 Obsidian 작성 양식을 덧붙인다.
 _ROUTE_PROMPT: dict[str, str] = {
     Route.CODE: _CODE_PROMPT,
-    Route.DOC: _DOC_PROMPT,
+    Route.DOC: _DOC_PROMPT + _VAULT_NOTE_FORMAT,
     Route.INFRA: _INFRA_PROMPT,
-    Route.STACK: _STACK_PROMPT,
-    Route.GENERAL: _GENERAL_PROMPT,
+    Route.STACK: _STACK_PROMPT + _VAULT_NOTE_FORMAT,
+    Route.GENERAL: _GENERAL_PROMPT + _VAULT_NOTE_FORMAT,
 }
 
 

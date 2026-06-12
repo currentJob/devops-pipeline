@@ -14,6 +14,7 @@ qdrant-client 의 fastembed 통합(add/query)을 사용하므로 컬렉션은 ad
 from __future__ import annotations
 
 import logging
+import re
 import time
 import uuid
 
@@ -24,6 +25,27 @@ logger = logging.getLogger(__name__)
 _NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00cf4fc964ff")  # 경로 → 안정적 point id
 _SNIPPET = 160
 _DOWN_TTL_S = 30.0
+
+# 프론트매터 tags 추출 — 블록 리스트(`- tag`)와 인라인(`[a, b]`) 두 형식 모두 지원.
+_FM_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
+_TAGS_BLOCK_RE = re.compile(r"^tags:\s*\n((?:\s*-\s*.+\n?)+)", re.MULTILINE)
+_TAGS_INLINE_RE = re.compile(r"^tags:\s*\[(.*?)\]", re.MULTILINE)
+
+
+def _parse_tags(text: str) -> list[str]:
+    """노트 본문의 YAML 프론트매터에서 tags 목록을 추출 (없으면 빈 리스트)."""
+    m = _FM_RE.match(text)
+    if not m:
+        return []
+    fm = m.group(1)
+    block = _TAGS_BLOCK_RE.search(fm)
+    if block:
+        return [ln.strip().lstrip("-").strip() for ln in block.group(1).splitlines() if ln.strip()]
+    inline = _TAGS_INLINE_RE.search(fm)
+    if inline:
+        return [t.strip() for t in inline.group(1).split(",") if t.strip()]
+    return []
+
 
 _client = None  # 지연 초기화된 QdrantClient
 _down_until = 0.0  # 이 시각까지는 미가용으로 간주 (반복적 느린 실패 방지)
@@ -78,7 +100,7 @@ def index_note(rel_path: str, title: str, text: str) -> bool:
         client.add(
             collection_name=config.QDRANT_COLLECTION,
             documents=[text],
-            metadata=[{"path": rel_path, "title": title}],
+            metadata=[{"path": rel_path, "title": title, "tags": _parse_tags(text)}],
             ids=[_point_id(rel_path)],
         )
         return True
@@ -97,13 +119,15 @@ def index_all(vault_dir) -> int | None:
     metadata: list[dict] = []
     ids: list[str] = []
     for path in sorted(vault_dir.rglob("*.md")):
+        if path.name.startswith("_"):
+            continue  # 생성된 MOC/Dashboard 노트는 인덱싱 제외
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         rel = path.relative_to(vault_dir).as_posix()
         documents.append(text)
-        metadata.append({"path": rel, "title": path.stem})
+        metadata.append({"path": rel, "title": path.stem, "tags": _parse_tags(text)})
         ids.append(_point_id(rel))
     if not documents:
         return 0
@@ -122,8 +146,18 @@ def index_all(vault_dir) -> int | None:
         return None
 
 
-def semantic_search(query: str, limit: int = 10) -> str | None:
-    """의미 기반 검색. 매칭 노트의 경로+요약 문자열, 결과 없음/미가용 시 None."""
+def _tag_filter(tags: list[str]):
+    """tags 중 하나라도 일치(MatchAny)하는 노트로 한정하는 Qdrant 필터."""
+    from qdrant_client import models
+
+    return models.Filter(must=[models.FieldCondition(key="tags", match=models.MatchAny(any=tags))])
+
+
+def semantic_search(query: str, limit: int = 10, tags: list[str] | None = None) -> str | None:
+    """의미 기반 검색. tags 지정 시 해당 태그를 가진 노트로 한정.
+
+    매칭 노트의 경로+요약 문자열, 결과 없음/미가용 시 None.
+    """
     client = _get_client()
     if client is None:
         return None
@@ -131,6 +165,7 @@ def semantic_search(query: str, limit: int = 10) -> str | None:
         results = client.query(
             collection_name=config.QDRANT_COLLECTION,
             query_text=query,
+            query_filter=_tag_filter(tags) if tags else None,
             limit=limit,
         )
     except Exception as e:

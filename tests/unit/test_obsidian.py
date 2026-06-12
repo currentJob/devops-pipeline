@@ -23,16 +23,28 @@ def _temp_vault(tmp_path, monkeypatch):
 
 
 def test_save_creates_note_with_frontmatter(_temp_vault):
-    result = obsidian.vault_save("Rust 비동기", "본문 내용", tags="rust, async")
+    result = obsidian.vault_save(
+        "Rust 비동기", "본문 내용", tags="type/research, tech/rust", aliases="러스트"
+    )
     assert "저장 완료" in result
     note = _temp_vault / "Rust 비동기.md"
     assert note.is_file()
     text = note.read_text(encoding="utf-8")
     assert text.startswith("---\n")
     assert 'title: "Rust 비동기"' in text
-    assert "tags: [rust, async]" in text
+    # 계층형 중첩 태그는 YAML 블록 리스트로 렌더 (Obsidian 프로퍼티 친화)
+    assert "tags:\n  - type/research\n  - tech/rust" in text
+    assert "aliases:\n  - 러스트" in text
+    assert "created:" in text and "updated:" in text
     assert "source: devops-pipeline" in text
     assert "본문 내용" in text
+
+
+def test_save_empty_tags_aliases_render_empty_list(_temp_vault):
+    obsidian.vault_save("태그없음", "내용")
+    text = (_temp_vault / "태그없음.md").read_text(encoding="utf-8")
+    assert "tags: []" in text
+    assert "aliases: []" in text
 
 
 def test_save_category_subfolder(_temp_vault):

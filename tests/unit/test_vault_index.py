@@ -23,11 +23,13 @@ class _Hit:
 class _FakeClient:
     def __init__(self):
         self.added: list[dict] = []
+        self.last_filter = None
 
     def add(self, collection_name, documents, metadata, ids, **kwargs):
         self.added.append({"docs": documents, "meta": metadata, "ids": ids})
 
-    def query(self, collection_name, query_text, limit):
+    def query(self, collection_name, query_text, limit, query_filter=None):
+        self.last_filter = query_filter
         return [
             _Hit({"path": "archive/a.md", "title": "A"}, "내용 일부 텍스트", 0.91),
             _Hit({"path": "archive/b.md", "title": "B"}, "다른 노트", 0.80),
@@ -104,3 +106,40 @@ def test_index_all_counts_md(tmp_path, monkeypatch):
 def test_index_all_unavailable_returns_none(tmp_path, monkeypatch):
     monkeypatch.setattr(vault_index, "_get_client", lambda: None)
     assert vault_index.index_all(tmp_path) is None
+
+
+# ── 태그 파싱 / 필터 ──────────────────────────────────────────────────────────
+
+
+def test_parse_tags_block_and_inline():
+    block = '---\ntitle: "A"\ntags:\n  - type/research\n  - area/vector-db\nsource: x\n---\n본문'
+    assert vault_index._parse_tags(block) == ["type/research", "area/vector-db"]
+    inline = "---\ntags: [rust, async]\n---\n본문"
+    assert vault_index._parse_tags(inline) == ["rust", "async"]
+    assert vault_index._parse_tags("프론트매터 없음") == []
+
+
+def test_index_note_stores_tags_in_payload(monkeypatch):
+    fake = _FakeClient()
+    monkeypatch.setattr(vault_index, "_get_client", lambda: fake)
+    doc = "---\ntags:\n  - tech/qdrant\n---\n본문"
+    assert vault_index.index_note("a.md", "A", doc) is True
+    assert fake.added[0]["meta"][0]["tags"] == ["tech/qdrant"]
+
+
+def test_index_all_skips_underscore_notes(tmp_path, monkeypatch):
+    (tmp_path / "real.md").write_text("내용", encoding="utf-8")
+    (tmp_path / "_MOC_x.md").write_text("생성물", encoding="utf-8")
+    fake = _FakeClient()
+    monkeypatch.setattr(vault_index, "_get_client", lambda: fake)
+    assert vault_index.index_all(tmp_path) == 1
+
+
+def test_semantic_search_applies_tag_filter(monkeypatch):
+    fake = _FakeClient()
+    monkeypatch.setattr(vault_index, "_get_client", lambda: fake)
+    vault_index.semantic_search("질의", tags=["area/devops"])
+    assert fake.last_filter is not None  # 태그 지정 → 필터 적용
+    # 태그 미지정 → 필터 없음
+    vault_index.semantic_search("질의")
+    assert fake.last_filter is None

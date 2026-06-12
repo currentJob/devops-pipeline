@@ -98,6 +98,7 @@ def register_commands(app: Application) -> None:
         cmd_audit,
         cmd_code,
         cmd_diff,
+        cmd_digest,
         cmd_doc,
         cmd_history,
         cmd_infra,
@@ -128,6 +129,7 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("diff", cmd_diff))
     app.add_handler(CommandHandler("stack", cmd_stack))
     app.add_handler(CommandHandler("reindex", cmd_reindex))
+    app.add_handler(CommandHandler("digest", cmd_digest))
     app.add_handler(CommandHandler("commit", cmd_commit))
     app.add_handler(
         CallbackQueryHandler(handle_commit_callback, pattern=r"^commit_(apply|cancel):")
