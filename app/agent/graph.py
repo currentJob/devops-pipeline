@@ -16,13 +16,14 @@ from enum import StrEnum
 
 from app import config
 from app.agent import runtime
+from app.agent.outcome import Outcome
 from app.agent.runtime import _notify, _route_backend_label  # 재노출 (worker/agent.py 호환)
 from app.rag.retriever import retrieve_context
 from app.worker import metrics, store
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["_notify", "run_task", "run_plan_task", "summarize_task"]
+__all__ = ["Outcome", "_notify", "run_task", "run_plan_task", "summarize_task"]
 
 # ── 라우트 정의 ───────────────────────────────────────────────────────────────
 
@@ -212,10 +213,12 @@ def _augment(description: str, memory: str, rag_context: str) -> str:
 # ── 공개 API ─────────────────────────────────────────────────────────────────
 
 
-async def run_task(task_id: str, description: str) -> str:
+async def run_task(task_id: str, description: str) -> Outcome:
     """게이트웨이를 통해 최적 전문 에이전트로 자동 라우팅."""
     if not config.CLAUDE_API_KEY and not config.VLLM_ENDPOINT:
-        return "(LLM 백엔드 미설정 — .env 의 CLAUDE_API_KEY 또는 VLLM_ENDPOINT 추가 필요)"
+        return Outcome.failure(
+            "LLM 백엔드 미설정 — .env 의 CLAUDE_API_KEY 또는 VLLM_ENDPOINT 추가 필요"
+        )
 
     rag_context = await _retrieve(description)
     route, cleaned = await _route(task_id, description)
@@ -225,7 +228,8 @@ async def run_task(task_id: str, description: str) -> str:
     # 라우트·백엔드별 사용량/지연 계측 (Grafana 대시보드용)
     metrics.ROUTE_TOTAL.labels(route=route, backend=_route_backend_label(route)).inc()
     with metrics.ROUTE_DURATION.labels(route=route).time():
-        return await runtime.run_agent(route, _dated(_ROUTE_PROMPT[route]), augmented, task_id)
+        text = await runtime.run_agent(route, _dated(_ROUTE_PROMPT[route]), augmented, task_id)
+    return Outcome.success(text)
 
 
 async def _plan(task_id: str, description: str) -> list[str]:
@@ -253,19 +257,25 @@ async def _plan(task_id: str, description: str) -> list[str]:
     return sub_tasks
 
 
-async def run_plan_task(task_id: str, description: str) -> str:
+async def run_plan_task(task_id: str, description: str) -> Outcome:
     """복합 작업을 하위 작업으로 분해 후 게이트웨이로 순차 실행."""
     if not config.CLAUDE_API_KEY and not config.VLLM_ENDPOINT:
-        return "(LLM 백엔드 미설정 — CLAUDE_API_KEY 또는 VLLM_ENDPOINT 필요)"
+        return Outcome.failure("LLM 백엔드 미설정 — CLAUDE_API_KEY 또는 VLLM_ENDPOINT 필요")
 
     sub_tasks = await _plan(task_id, description)
     total = len(sub_tasks)
+    outcomes: list[Outcome] = []
     results: list[str] = []
     for idx, sub in enumerate(sub_tasks):
         sub_id = f"{task_id}-{idx + 1}"
         logger.info("플래너 실행 task_id=%s step=%d/%d", task_id, idx + 1, total)
         await _notify(f"▶️ 하위 작업 {idx + 1}/{total} (id=`{sub_id}`)\n{sub[:100]}")
-        result = await run_task(sub_id, sub)
-        results.append(f"**[{idx + 1}/{total}] {sub[:60]}**\n{result}")
+        outcome = await run_task(sub_id, sub)
+        outcomes.append(outcome)
+        results.append(f"**[{idx + 1}/{total}] {sub[:60]}**\n{outcome.text}")
 
-    return "\n\n---\n\n".join(results) or "(결과 없음)"
+    combined = "\n\n---\n\n".join(results)
+    if not combined:
+        return Outcome.failure("결과 없음")
+    # 하위 작업이 하나라도 실패하면 플랜 전체를 실패로 표기
+    return Outcome(ok=all(o.ok for o in outcomes), text=combined)

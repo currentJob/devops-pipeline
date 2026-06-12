@@ -13,6 +13,7 @@ import asyncio
 import datetime
 import logging
 import os
+from enum import StrEnum
 from pathlib import Path
 
 from sqlalchemy import (
@@ -35,6 +36,16 @@ from app import config
 
 logger = logging.getLogger(__name__)
 
+
+class TaskStatus(StrEnum):
+    """작업 수명주기 상태 — DB status 컬럼에 그대로 저장되는 문자열 값."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
 _metadata = MetaData()
 
 tasks = Table(
@@ -42,7 +53,7 @@ tasks = Table(
     _metadata,
     Column("task_id", String, primary_key=True),
     Column("description", Text, nullable=False),
-    Column("status", String, nullable=False, server_default="pending"),
+    Column("status", String, nullable=False, server_default=TaskStatus.PENDING.value),
     Column("result", Text),
     Column("summary", Text),
     Column("attempts", Integer, nullable=False, server_default="0"),
@@ -123,7 +134,7 @@ async def set_running(task_id: str) -> None:
         await conn.execute(
             update(tasks)
             .where(tasks.c.task_id == task_id)
-            .values(status="running", attempts=tasks.c.attempts + 1)
+            .values(status=TaskStatus.RUNNING.value, attempts=tasks.c.attempts + 1)
         )
 
 
@@ -133,7 +144,7 @@ async def set_done(task_id: str, result: str, *, failed: bool = False) -> None:
             update(tasks)
             .where(tasks.c.task_id == task_id)
             .values(
-                status="failed" if failed else "done",
+                status=(TaskStatus.FAILED if failed else TaskStatus.DONE).value,
                 result=result[:4000],
                 completed_at=_now(),
             )

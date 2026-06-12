@@ -27,6 +27,7 @@ import aiohttp
 from aiohttp import web
 
 from app import config
+from app.agent.outcome import Outcome
 from app.worker import git_ops, metrics, selfcheck, store
 from app.worker.agent import _notify, _run_with_tools, plan_and_run, summarize_task
 
@@ -81,10 +82,10 @@ async def _process_task(job: _Job) -> None:
         if description.startswith("[PLAN_TASK]"):
             cleaned = description[len("[PLAN_TASK]") :].strip()
             try:
-                result = await plan_and_run(task_id, cleaned)
+                outcome = await plan_and_run(task_id, cleaned)
             except Exception as e:
                 logger.exception("플래너 오류 task_id=%s", task_id)
-                result = f"(플래너 오류: {type(e).__name__}: {e})"
+                outcome = Outcome.failure(f"플래너 오류: {type(e).__name__}: {e}")
         else:
             if save_to_vault:
                 description = (
@@ -94,19 +95,19 @@ async def _process_task(job: _Job) -> None:
                     "저장 완료 후 파일 경로를 응답에 포함."
                 )
             try:
-                result = await _run_with_tools(task_id, description)
+                outcome = await _run_with_tools(task_id, description)
             except Exception as e:
                 logger.exception("작업 처리 중 예외 task_id=%s", task_id)
-                result = f"(내부 오류: {type(e).__name__}: {e})"
+                outcome = Outcome.failure(f"내부 오류: {type(e).__name__}: {e}")
 
-        failed = result.startswith("(") and result.endswith(")")
-        await store.set_done(task_id, result, failed=failed)
+        failed = not outcome.ok
+        await store.set_done(task_id, outcome.text, failed=failed)
         metrics.TASKS_TOTAL.labels(status="failed" if failed else "done").inc()
-        await _report_result(task_id, result)
+        await _report_result(task_id, outcome.text)
         logger.info("작업 완료 task_id=%s", task_id)
 
     # 다음 작업이 참조할 요약본 저장 (계측 구간 밖, 실패해도 무시)
-    await _store_summary(task_id, job.description, result, failed)
+    await _store_summary(task_id, job.description, outcome.text, failed)
 
 
 async def _store_summary(task_id: str, description: str, result: str, failed: bool) -> None:

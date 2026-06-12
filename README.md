@@ -1,7 +1,7 @@
 # DevOps 자동화 파이프라인
 
-> **Telegram 봇으로 제어하는 LangGraph 멀티 에이전트 DevOps 자동화 파이프라인**
-> 자연어 명령 → 게이트웨이가 전문 에이전트로 자동 분기 → ReAct 루프로 작업 수행 → 결과를 Telegram 으로 회신.
+> **Telegram 봇으로 제어하는 멀티 에이전트 DevOps 자동화 파이프라인** (네이티브 anthropic/openai SDK)
+> 자연어 명령 → 게이트웨이가 전문 에이전트로 자동 분기 → 도구 사용(tool-use) 루프로 작업 수행 → 결과를 Telegram 으로 회신.
 
 Claude API(또는 로컬 vLLM)를 백엔드로, **코드 분석 · 문서 작성 · 인프라 점검 · 트렌드 리서치**를 채팅 한 줄로 위임합니다. 컨테이너 빌드 → 레지스트리 → Kubernetes → 모니터링까지 운영 파이프라인을 함께 제공합니다.
 
@@ -39,7 +39,7 @@ Claude Code + Rules + Subagents
 | 요소 | 정체 | 책임 |
 |------|------|------|
 | **Bot** | Telegram 인터페이스 (`:8765`) | 명령 수신·인가, 워커에 작업 위임, 결과 알림 |
-| **Worker** | LangGraph 게이트웨이 (`:8766`) | 작업 라우팅, 전문 에이전트 ReAct 루프 실행 |
+| **Worker** | 게이트웨이 (`:8766`) | 작업 라우팅, 전문 에이전트 도구 사용(tool-use) 루프 실행 |
 | **Gateway** | 라우터 + 5개 전문 에이전트 | 작업 유형 판별 → code/doc/infra/stack/general 분기 |
 | **Tools** | 에이전트의 손발 | `read_file` · `write_file` · `bash` · `recent_research` · `vault_*` |
 | **Qdrant** | 벡터 DB (`:6333`, 내부) | vault 노트 임베딩 저장 → `vault_search` 의미 검색 |
@@ -91,11 +91,11 @@ uv run python -m app.worker.server  # 워커 (별도 터미널)
                   [Worker :8766]
                          │
               ┌──────────┴───────────┐
-              │  LangGraph Gateway    │
+              │  Native Gateway       │
               │  retrieve → router    │
               └──────────┬───────────┘
             ┌─────┬──────┼──────┬─────────┐
-          code   doc   infra  stack   general   ← 전문 에이전트 (ReAct)
+          code   doc   infra  stack   general   ← 전문 에이전트 (tool-use)
             └─────┴──────┼──────┴─────────┘
                          │  도구: read_file/write_file/bash/recent_research/vault_*
                          ▼  결과 전송 (HTTP POST /worker-result)
@@ -127,7 +127,7 @@ devops-pipeline/
 │   │   ├── agent.py            # graph.py 로의 얇은 위임 래퍼
 │   │   └── store.py            # SQLite 작업 이력 (worker-data 명명 볼륨, /app/data)
 │   ├── agent/
-│   │   ├── graph.py            # ★ LangGraph 게이트웨이 + 5 에이전트 + Planner
+│   │   ├── graph.py            # ★ 네이티브 게이트웨이 + 5 에이전트 + Planner
 │   │   └── tools.py            # LangChain @tool 래퍼
 │   ├── tools/                  # 도구 구현 (권한 가드 포함)
 │   │   ├── filesystem.py       #   read_file / write_file (경로 샌드박스)
@@ -194,7 +194,7 @@ START → retrieve(Brave 검색) → router → ┬ code
 
 ### Planner
 
-`/plan` 은 별도 StateGraph 로 복합 작업을 **최대 5개 하위 작업으로 분해**한 뒤, 각 하위 작업을 다시 게이트웨이로 순차 실행합니다.
+`/plan` 은 별도 분해 단계로 복합 작업을 **최대 5개 하위 작업으로 분해**한 뒤, 각 하위 작업을 다시 게이트웨이로 순차 실행합니다.
 
 ```
 START → plan(JSON 분해) → execute(루프) → END
