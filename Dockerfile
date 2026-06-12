@@ -30,6 +30,12 @@ RUN apt-get update \
 
 # 보안: root 아닌 전용 유저로 실행
 RUN useradd --create-home --no-log-init appuser
+
+# 데이터 디렉터리를 appuser 소유로 미리 생성 — 명명 볼륨(worker-data)이 이 소유권을
+# 상속해, non-root 컨테이너가 어떤 플랫폼에서도 sqlite/임베딩 캐시를 쓸 수 있게 한다.
+# (바인드마운트와 달리 빈 명명 볼륨은 이미지 디렉터리의 소유권을 복사함)
+RUN mkdir -p /app/data && chown appuser:appuser /app/data
+
 USER appuser
 
 # 빌드 스테이지에서 설치된 패키지 복사 (동일 경로 → shebang 유효)

@@ -125,7 +125,7 @@ devops-pipeline/
 │   ├── worker/
 │   │   ├── server.py           # 워커 HTTP 서버 (/run /tasks /health)
 │   │   ├── agent.py            # graph.py 로의 얇은 위임 래퍼
-│   │   └── store.py            # SQLite 작업 이력 (data/tasks.db)
+│   │   └── store.py            # SQLite 작업 이력 (worker-data 명명 볼륨, /app/data)
 │   ├── agent/
 │   │   ├── graph.py            # ★ LangGraph 게이트웨이 + 5 에이전트 + Planner
 │   │   └── tools.py            # LangChain @tool 래퍼

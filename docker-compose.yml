@@ -8,6 +8,7 @@ volumes:
   grafana-data:
   postgres-data:
   qdrant-data:
+  worker-data:
 
 services:
   bot:
@@ -63,7 +64,9 @@ services:
       - "8766"
     volumes:
       - ./logs:/app/logs
-      - ./data:/app/data
+      # 작업 이력 DB(sqlite) + 임베딩 캐시 — 명명 볼륨(이미지의 appuser 소유 상속)이라
+      # non-root 컨테이너가 Linux/Mac/Windows 어디서나 쓰기 가능. 바인드마운트 uid 불일치 회피.
+      - worker-data:/app/data
       # rw: /commit 이 로컬 git 커밋(.git 쓰기)을 수행. 원격 push 는 하지 않음.
       # 컨테이너 root FS 는 read_only 로 유지되고, 쓰기는 이 바인드 마운트로 한정.
       - ./:/workspace:rw

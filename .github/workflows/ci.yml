@@ -54,9 +54,8 @@ jobs:
       # compose 의 env_file 이 요구하는 .env 를 가장 먼저 생성 — 이후 모든 docker compose
       # 명령(부팅·teardown)이 .env 를 찾도록. (없으면 teardown 이 실패해 진짜 원인을 가림)
       - name: Prepare .env (CI dummy)
-        # DATA_DIR=/tmp: sqlite 를 쓰기 가능한 tmpfs 로 (CI 러너 소유 ./data 는 컨테이너
-        # appuser 가 못 씀 — Linux 바인드마운트 uid 불일치). smoke 부팅용 임시값.
-        run: printf 'TELEGRAM_TOKEN=ci-dummy\nTELEGRAM_CHAT_ID=0\nDATA_DIR=/tmp\n' > .env
+        # worker-data 명명 볼륨이 appuser 소유라 sqlite/캐시 쓰기 OK — DATA_DIR 우회 불필요.
+        run: printf 'TELEGRAM_TOKEN=ci-dummy\nTELEGRAM_CHAT_ID=0\n' > .env
 
       # 1) dev 이미지 안에서 테스트 스위트 실행 — 봇 /test 경로(컨테이너 내 pytest 도구) 검증
       - name: Build dev worker image
