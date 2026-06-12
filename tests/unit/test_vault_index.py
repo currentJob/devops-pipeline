@@ -24,7 +24,7 @@ class _FakeClient:
     def __init__(self):
         self.added: list[dict] = []
 
-    def add(self, collection_name, documents, metadata, ids):
+    def add(self, collection_name, documents, metadata, ids, **kwargs):
         self.added.append({"docs": documents, "meta": metadata, "ids": ids})
 
     def query(self, collection_name, query_text, limit):

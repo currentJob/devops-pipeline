@@ -29,6 +29,11 @@ QDRANT_COLLECTION: str = os.environ.get("QDRANT_COLLECTION", "vault")
 EMBED_MODEL: str = os.environ.get(
     "EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
+# onnxruntime 스레드 수 — 미설정 시 코어 수만큼 띄워 메모리가 크게 증가한다.
+# 1 로 제한해 메모리·CPU 점유를 낮춤(재인덱싱은 약간 느려지나 read_only 컨테이너에 안전).
+EMBED_THREADS: int = int(os.environ.get("EMBED_THREADS", "1"))
+# 재인덱싱 임베딩 배치 크기 — 한 번에 메모리에 올리는 문서 수(피크 메모리 제한).
+EMBED_BATCH_SIZE: int = int(os.environ.get("EMBED_BATCH_SIZE", "16"))
 # Qdrant 클라이언트 요청 타임아웃(초) — 미가용 시 빠른 폴백을 위해 짧게.
 QDRANT_TIMEOUT_S: float = float(os.environ.get("QDRANT_TIMEOUT_S", "3"))
 # RAG 웹 검색 (선택 — Brave Search API 키, https://brave.com/search/api/)

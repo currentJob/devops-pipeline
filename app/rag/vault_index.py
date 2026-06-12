@@ -59,7 +59,8 @@ def _get_client():
         from qdrant_client import QdrantClient
 
         client = QdrantClient(url=config.QDRANT_URL, timeout=config.QDRANT_TIMEOUT_S)
-        client.set_model(config.EMBED_MODEL)  # fastembed 임베딩 설정 (모델은 첫 사용 시 다운로드)
+        # threads 제한: onnxruntime 이 코어 수만큼 스레드를 띄우며 메모리가 급증하는 것을 막음.
+        client.set_model(config.EMBED_MODEL, threads=config.EMBED_THREADS)
         _client = client
         return _client
     except Exception as e:
@@ -112,6 +113,7 @@ def index_all(vault_dir) -> int | None:
             documents=documents,
             metadata=metadata,
             ids=ids,
+            batch_size=config.EMBED_BATCH_SIZE,  # 피크 메모리 제한
         )
         return len(documents)
     except Exception as e:
