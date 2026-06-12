@@ -10,8 +10,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from langchain_core.messages import HumanMessage, SystemMessage
-
 from app import config
 
 logger = logging.getLogger(__name__)
@@ -86,21 +84,16 @@ def _strip_fences(text: str) -> str:
 
 async def generate_message(status: str, diff: str) -> str:
     """변경 내역으로부터 커밋 메시지를 생성."""
-    from app.agent.graph import _make_llm
+    from app.agent import runtime
 
-    llm = await _make_llm()
-    resp = await llm.ainvoke(
-        [
-            SystemMessage(content=_COMMIT_SYSTEM),
-            HumanMessage(
-                content=(
-                    f"[git status]\n{status}\n\n"
-                    f"[git diff]\n{diff or '(텍스트 diff 없음 — 신규/바이너리 파일)'}"
-                )
-            ),
-        ]
+    content = await runtime.chat(
+        system=_COMMIT_SYSTEM,
+        user=(
+            f"[git status]\n{status}\n\n"
+            f"[git diff]\n{diff or '(텍스트 diff 없음 — 신규/바이너리 파일)'}"
+        ),
     )
-    return _strip_fences(resp.content)
+    return _strip_fences(content)
 
 
 async def apply_commit(message: str) -> str:

@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 from app.tools.filesystem import read_file, write_file
 from app.tools.obsidian import vault_save, vault_search
+from app.tools.research import recent_research
 from app.tools.shell import bash
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ _TOOL_HANDLERS: dict[str, Callable] = {
     "read_file": lambda a: read_file(a["path"]),
     "write_file": lambda a: write_file(a["path"], a["content"]),
     "bash": lambda a: bash(a["command"]),
+    "recent_research": lambda a: recent_research(a["topic"]),
     "vault_search": lambda a: vault_search(a["query"], int(a.get("limit", 10))),
     "vault_save": lambda a: vault_save(
         a["title"], a["content"], a.get("category", ""), a.get("tags", "")
@@ -71,6 +73,21 @@ TOOLS_SCHEMA = [
         },
     },
     {
+        "name": "recent_research",
+        "description": (
+            "최신 자료 조사 — Reddit·Hacker News 등에서 최근 한 달 게시물/반응을 수집한다. "
+            "'최신 트렌드'·'요즘'·'최근 동향'·채택률 등 시점에 민감하거나 학습 지식으로 "
+            "답하기 어려운 주제에만 사용. 출력의 출처 URL 을 근거로 인용할 것."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "조사할 주제"},
+            },
+            "required": ["topic"],
+        },
+    },
+    {
         "name": "vault_search",
         "description": (
             "Obsidian vault 의 기존 노트를 query 키워드로 검색 (파일명+본문 매칭). "
@@ -106,16 +123,64 @@ TOOLS_SCHEMA = [
 ]
 
 
+# Anthropic Messages API 의 tools= 형식 (= TOOLS_SCHEMA 그대로)
+ANTHROPIC_TOOLS = TOOLS_SCHEMA
+
+# 라우트별 허용 도구 — graph._AGENT_CONFIG 와 일치. (general/doc 은 전체)
+_ALL_TOOL_NAMES = [s["name"] for s in TOOLS_SCHEMA]
+ROUTE_TOOLS: dict[str, list[str]] = {
+    "code": ["bash", "read_file", "write_file"],
+    "doc": ["read_file", "write_file", "recent_research", "vault_search", "vault_save"],
+    "infra": ["bash", "read_file", "write_file"],
+    "stack": ["recent_research", "vault_search", "vault_save"],
+    "general": _ALL_TOOL_NAMES,
+}
+
+
+def _openai_tool(schema: dict) -> dict:
+    """Anthropic 도구 스키마 → OpenAI function-calling 형식."""
+    return {
+        "type": "function",
+        "function": {
+            "name": schema["name"],
+            "description": schema["description"],
+            "parameters": schema["input_schema"],
+        },
+    }
+
+
+def openai_tools(schemas: list[dict] | None = None) -> list[dict]:
+    """OpenAI(vLLM) tools= 형식 목록. schemas 미지정 시 전체."""
+    return [_openai_tool(s) for s in (schemas if schemas is not None else TOOLS_SCHEMA)]
+
+
+def tools_for(route: str | None) -> tuple[list[dict], list[dict]]:
+    """라우트별 (anthropic_schema, openai_schema) 부분집합. 미지정/미지원 라우트는 전체."""
+    names = ROUTE_TOOLS.get(route or "", _ALL_TOOL_NAMES)
+    anthropic = [s for s in TOOLS_SCHEMA if s["name"] in names]
+    return anthropic, openai_tools(anthropic)
+
+
+# 도구 결과를 잘라 tool-use 루프의 컨텍스트 누적 폭증 억제 (작은 컨텍스트 모델 보호)
+_TOOL_RESULT_MAX_CHARS = 4000
+
+
+def _trim(result: str) -> str:
+    if len(result) <= _TOOL_RESULT_MAX_CHARS:
+        return result
+    return result[:_TOOL_RESULT_MAX_CHARS] + f"\n...(잘림: 총 {len(result)}자)"
+
+
 async def execute(name: str, args: dict) -> str:
-    """Claude 가 호출한 도구 이름 + 인자 → 결과 문자열."""
+    """도구 이름 + 인자 → 결과 문자열 (4000자 초과 시 트림)."""
     handler = _TOOL_HANDLERS.get(name)
     if handler is None:
         return f"알 수 없는 도구: {name}"
     try:
         result = handler(args)
         if inspect.isawaitable(result):
-            return await result
-        return result
+            result = await result
+        return _trim(result)
     except KeyError as e:
         return f"필수 인자 누락: {e}"
     except Exception as e:

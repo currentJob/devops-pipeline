@@ -167,3 +167,15 @@ async def test_execute_missing_arg():
 async def test_execute_read_file():
     result = await tools.execute("read_file", {"path": "app/main.py"})
     assert "hello" in result
+
+
+@pytest.mark.asyncio
+async def test_execute_trims_long_output():
+    # tool-use 루프 컨텍스트 보호: 4000자 초과 결과는 트림
+    tools._TOOL_HANDLERS["__big__"] = lambda _a: "x" * 10000
+    try:
+        out = await tools.execute("__big__", {})
+        assert "잘림" in out
+        assert len(out) < 10000
+    finally:
+        del tools._TOOL_HANDLERS["__big__"]
