@@ -51,6 +51,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # compose 의 env_file 이 요구하는 .env 를 가장 먼저 생성 — 이후 모든 docker compose
+      # 명령(부팅·teardown)이 .env 를 찾도록. (없으면 teardown 이 실패해 진짜 원인을 가림)
+      - name: Prepare .env (CI dummy)
+        run: printf 'TELEGRAM_TOKEN=ci-dummy\nTELEGRAM_CHAT_ID=0\n' > .env
+
       # 1) dev 이미지 안에서 테스트 스위트 실행 — 봇 /test 경로(컨테이너 내 pytest 도구) 검증
       - name: Build dev worker image
         uses: docker/build-push-action@v6
@@ -64,15 +69,15 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run test suite inside dev image
+        # appuser(봇과 동일 권한)로 실행해 콘솔 스크립트 shebang·권한 경로를 그대로 검증.
+        # -p no:cacheprovider: .pytest_cache 미생성 (마운트 쓰기 회피)
         run: |
           docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace \
-            devops-pipeline:dev pytest tests/ -q
+            devops-pipeline:dev pytest tests/ -q -p no:cacheprovider
 
       # 2) 컨테이너 부팅 + 자가점검 — 기동/Qdrant 연결/git ownership 등 통합 결함 검출
       - name: Boot worker + qdrant
-        run: |
-          printf 'TELEGRAM_TOKEN=ci-dummy\nTELEGRAM_CHAT_ID=0\n' > .env
-          docker compose up -d --build qdrant worker
+        run: docker compose up -d --build qdrant worker
 
       - name: Wait for worker health
         run: |

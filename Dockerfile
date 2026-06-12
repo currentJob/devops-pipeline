@@ -1,7 +1,9 @@
 # ── 빌드 스테이지 ─────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 
-WORKDIR /build
+# 런타임과 동일 경로(/app)에 venv 를 만든다 — 콘솔 스크립트(pytest·ruff·pip-audit)의
+# shebang(#!/app/.venv/bin/python)이 런타임에서도 유효하도록 (venv 재배치 깨짐 방지).
+WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
@@ -30,8 +32,8 @@ RUN apt-get update \
 RUN useradd --create-home --no-log-init appuser
 USER appuser
 
-# 빌드 스테이지에서 설치된 패키지 복사
-COPY --from=builder /build/.venv /app/.venv
+# 빌드 스테이지에서 설치된 패키지 복사 (동일 경로 → shebang 유효)
+COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 # stdout/stderr 즉시 플러시 — docker logs 가 실시간으로 보이도록
 ENV PYTHONUNBUFFERED=1
@@ -53,4 +55,4 @@ RUN uv sync --frozen --no-install-project
 
 FROM runtime AS runtime-dev
 # dev 의존성이 포함된 venv 로 교체 (ruff/pytest/pip-audit 바이너리가 /app/.venv/bin 에)
-COPY --from=builder-dev /build/.venv /app/.venv
+COPY --from=builder-dev /app/.venv /app/.venv
