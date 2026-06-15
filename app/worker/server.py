@@ -47,6 +47,18 @@ class _Job:
 _queue: asyncio.Queue[_Job] = asyncio.Queue(maxsize=0)  # main() 에서 실제 크기로 교체
 _semaphore: asyncio.Semaphore = asyncio.Semaphore(1)  # main() 에서 실제 값으로 교체
 
+# 이벤트 루프는 태스크에 약참조만 유지하므로, 참조를 남기지 않으면 실행 중 GC 될 수 있다.
+# 강참조를 보관하고 완료 시 자동 제거한다.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    """백그라운드 태스크를 생성하고 강참조를 보관(완료 시 자동 해제)."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
 
 async def _report_result(task_id: str, result: str) -> None:
     async with aiohttp.ClientSession() as session:
@@ -124,7 +136,7 @@ async def _worker_loop() -> None:
     while True:
         job = await _queue.get()
         metrics.QUEUE_SIZE.set(_queue.qsize())
-        asyncio.create_task(_run_with_semaphore(job))
+        _spawn(_run_with_semaphore(job))
         _queue.task_done()
 
 
@@ -146,12 +158,13 @@ async def _handle_run(request: web.Request) -> web.Response:
     save_to_vault = bool(body.get("save_to_vault", False))
 
     job = _Job(task_id=task_id, description=description, save_to_vault=save_to_vault)
+    # DB 행을 먼저 생성한 뒤 큐에 넣는다 — 워커 루프가 set_running(UPDATE) 을
+    # create(INSERT) 보다 먼저 실행해 상태/attempts 가 유실되는 경합을 차단.
+    await store.create(task_id, description)
     try:
         _queue.put_nowait(job)
     except asyncio.QueueFull:
         return web.Response(status=429, text="큐 가득 참 — 잠시 후 재시도")
-
-    await store.create(task_id, description)
     metrics.QUEUE_SIZE.set(_queue.qsize())
     logger.info("작업 큐 등록 task_id=%s", task_id)
     return web.Response(status=202, text=task_id)
@@ -331,9 +344,9 @@ async def main() -> None:
     site = web.TCPSite(runner, WORKER_HOST, WORKER_PORT)
     await site.start()
 
-    asyncio.create_task(_worker_loop())
+    _spawn(_worker_loop())
     if config.DIGEST_ENABLED:
-        asyncio.create_task(_digest_loop())
+        _spawn(_digest_loop())
         logger.info("정기 다이제스트 활성: %d일 주기", config.DIGEST_INTERVAL_DAYS)
 
     logger.info("워커 시작: http://%s:%d", WORKER_HOST, WORKER_PORT)
