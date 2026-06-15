@@ -105,9 +105,26 @@ async def test_nonzero_exit(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_timeout(monkeypatch):
-    _patch_exec(monkeypatch, exc=TimeoutError())
+    # 타임아웃은 wait_for 에서 발생 — 고아 프로세스를 막기 위해 kill 이 호출되어야 한다.
+    killed = {"kill": False}
+
+    class _KillProc(_FakeProc):
+        def kill(self):
+            killed["kill"] = True
+
+        async def wait(self):
+            pass
+
+    _patch_exec(monkeypatch, proc=_KillProc(b""))
+
+    async def _fake_wait_for(coro, timeout):
+        coro.close()  # 'coroutine never awaited' 경고 방지
+        raise TimeoutError
+
+    monkeypatch.setattr(research.asyncio, "wait_for", _fake_wait_for)
     result = await research.recent_research("rust async")
     assert "타임아웃" in result
+    assert killed["kill"]
 
 
 @pytest.mark.asyncio

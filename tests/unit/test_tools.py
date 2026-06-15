@@ -142,6 +142,40 @@ async def test_bash_allowlist_prefix_matching():
 
 
 @pytest.mark.asyncio
+async def test_bash_kills_process_on_timeout(monkeypatch):
+    # 타임아웃 시 고아 프로세스가 남지 않도록 kill + wait 가 호출되어야 한다.
+    from app.tools import shell
+
+    killed = {"kill": False, "waited": False}
+
+    class _FakeProc:
+        returncode = -9
+
+        async def communicate(self):
+            return (b"", b"")
+
+        def kill(self):
+            killed["kill"] = True
+
+        async def wait(self):
+            killed["waited"] = True
+
+    async def _fake_exec(*_a, **_k):
+        return _FakeProc()
+
+    async def _fake_wait_for(coro, timeout):
+        coro.close()  # 'coroutine never awaited' 경고 방지
+        raise TimeoutError
+
+    monkeypatch.setattr(shell.asyncio, "create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr(shell.asyncio, "wait_for", _fake_wait_for)
+
+    out = await shell.bash("ls")
+    assert "타임아웃" in out
+    assert killed["kill"] and killed["waited"]
+
+
+@pytest.mark.asyncio
 async def test_bash_prefix_must_be_word_boundary():
     # "lsx" 는 "ls" prefix 로 잘못 통과되면 안 됨
     result = await tools.bash("lsx fake")

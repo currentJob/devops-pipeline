@@ -57,11 +57,15 @@ async def bash(command: str) -> str:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=BASH_TIMEOUT_S)
-    except TimeoutError:
-        return f"실행 타임아웃 {BASH_TIMEOUT_S}s"
     except FileNotFoundError as e:
         return f"명령 실행 실패: {e}"
+
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=BASH_TIMEOUT_S)
+    except TimeoutError:
+        proc.kill()  # 타임아웃 시 고아 프로세스가 남지 않도록 종료
+        await proc.wait()
+        return f"실행 타임아웃 {BASH_TIMEOUT_S}s"
 
     out = stdout.decode("utf-8", errors="replace")
     if len(out) > MAX_FILE_BYTES:

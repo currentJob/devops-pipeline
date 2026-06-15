@@ -55,7 +55,12 @@ async def _git(*args: str) -> tuple[int, str]:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
-    out, _ = await asyncio.wait_for(proc.communicate(), timeout=_GIT_TIMEOUT_S)
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=_GIT_TIMEOUT_S)
+    except TimeoutError:
+        proc.kill()  # 타임아웃 시 고아 git 프로세스 종료 후 재전파
+        await proc.wait()
+        raise
     return proc.returncode, out.decode("utf-8", errors="replace").strip()
 
 

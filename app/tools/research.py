@@ -65,14 +65,18 @@ async def recent_research(topic: str) -> str:
             stderr=asyncio.subprocess.PIPE,
             env=os.environ.copy(),
         )
+    except OSError as e:
+        logger.warning("last30days 실행 실패: %s", e)
+        return f"조사 실행 실패: {e}"
+
+    try:
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(), timeout=config.RESEARCH_TIMEOUT_S
         )
     except TimeoutError:
+        proc.kill()  # 타임아웃 시 고아 CLI 프로세스 종료
+        await proc.wait()
         return f"조사 타임아웃 {config.RESEARCH_TIMEOUT_S:.0f}s"
-    except OSError as e:
-        logger.warning("last30days 실행 실패: %s", e)
-        return f"조사 실행 실패: {e}"
 
     out = stdout.decode("utf-8", errors="replace").strip()
     if proc.returncode != 0 and not out:
