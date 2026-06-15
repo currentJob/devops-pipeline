@@ -1,5 +1,5 @@
 [project]
-name = "ocr"
+name = "devops-pipeline"
 version = "0.1.0"
 description = "Telegram 승인 기반 자동화 파이프라인"
 readme = "README.md"
