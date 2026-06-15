@@ -1,5 +1,5 @@
 # ── 빌드 스테이지 ─────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 # 런타임과 동일 경로(/app)에 venv 를 만든다 — 콘솔 스크립트(pytest·ruff·pip-audit)의
 # shebang(#!/app/.venv/bin/python)이 런타임에서도 유효하도록 (venv 재배치 깨짐 방지).
@@ -16,7 +16,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # ── 실행 스테이지 ─────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 WORKDIR /app
 
