@@ -12,7 +12,6 @@
 
 ## 입력 (Inputs)
 
-- 대상 디렉토리: `D:\devops-pipeline`
 - 핵심 메타파일: `pyproject.toml`, `uv.lock`, `Dockerfile`, `docker-compose.yml`, `.env`, `CLAUDE.md`
 - 코드 디렉토리: `app/`
 
