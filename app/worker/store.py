@@ -190,4 +190,5 @@ async def get_recent(limit: int = 10) -> list[dict]:
 
 
 def _now() -> str:
-    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M UTC")
+    # 초 단위 포함 — 같은 분에 생성된 작업의 정렬(get_recent/메모리)이 비결정적이지 않도록.
+    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
