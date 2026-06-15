@@ -98,6 +98,7 @@ def register_commands(app: Application) -> None:
         handle_commit_callback,
         handle_push_callback,
     )
+    from app.bot.commands.notes_cmd import cmd_notes, handle_notes_callback
     from app.bot.commands.pipeline_cmd import cmd_run
     from app.bot.commands.system import (
         cmd_health,
@@ -149,3 +150,5 @@ def register_commands(app: Application) -> None:
     )
     app.add_handler(CommandHandler("push", cmd_push))
     app.add_handler(CallbackQueryHandler(handle_push_callback, pattern=r"^push_(apply|cancel):"))
+    app.add_handler(CommandHandler("notes", cmd_notes))
+    app.add_handler(CallbackQueryHandler(handle_notes_callback, pattern=r"^vnt:"))

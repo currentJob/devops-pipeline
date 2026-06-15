@@ -113,6 +113,24 @@ async def apply_commit(message: str) -> str:
     return head
 
 
+async def commit_paths(paths: list[str], message: str) -> str | None:
+    """지정 경로만 스테이징해 커밋(전체 add 안 함). 스테이징 변경이 없으면 None.
+
+    발행 적용 전용 — site/content 같은 한정 경로만 커밋해 무관 작업트리 변경을 끌어오지 않는다.
+    """
+    rc, out = await _git("add", "--", *paths)
+    if rc != 0:
+        raise RuntimeError(f"git add 실패: {out}")
+    rc, _ = await _git("diff", "--cached", "--quiet")  # 0 = 스테이징 변경 없음
+    if rc == 0:
+        return None
+    rc, out = await _git("commit", "-m", message)
+    if rc != 0:
+        raise RuntimeError(f"git commit 실패: {out}")
+    _, head = await _git("log", "-1", "--oneline")
+    return head
+
+
 # ── 원격 push (/push 명령) ────────────────────────────────────────────────────
 
 

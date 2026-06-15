@@ -290,6 +290,46 @@ async def _handle_vault_reindex(_request: web.Request) -> web.Response:
     return _json({"ok": True, "indexed": count, "moc": moc_count})
 
 
+async def _handle_vault_notes(_request: web.Request) -> web.Response:
+    """발행 토글 후보 노트 목록(카테고리·발행상태 포함). 봇 /notes."""
+    from app.worker import publish_ops
+
+    rows = await asyncio.to_thread(publish_ops.list_notes)
+    truncated = len(rows) > publish_ops.NOTES_MAX
+    return _json({"ok": True, "notes": rows[: publish_ops.NOTES_MAX], "truncated": truncated})
+
+
+async def _handle_vault_publish(request: web.Request) -> web.Response:
+    """단일 노트의 publish 플래그 토글. body: {path, publish:bool}."""
+    from app.worker import publish_ops
+
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid json")
+    path = (body.get("path") or "").strip()
+    if not path:
+        return web.Response(status=400, text="empty path")
+    value = bool(body.get("publish", False))
+    try:
+        row = await asyncio.to_thread(publish_ops.set_publish, path, value)
+    except ValueError as e:
+        return _json({"ok": False, "detail": str(e)}, status=400)
+    return _json({"ok": True, "row": row})
+
+
+async def _handle_vault_publish_apply(_request: web.Request) -> web.Response:
+    """발행 적용: export + site/content 한정 커밋 + push."""
+    from app.worker import publish_ops
+
+    try:
+        result = await publish_ops.apply()
+    except Exception as e:
+        logger.exception("발행 적용 실패")  # push 실패 메시지는 git_ops 에서 토큰 redact 됨
+        return _json({"ok": False, "detail": f"{type(e).__name__}: {e}"}, status=500)
+    return _json(result)
+
+
 async def _handle_health(_request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
@@ -342,6 +382,9 @@ async def main() -> None:
     app.router.add_post("/git/commit", _handle_git_commit)
     app.router.add_post("/git/push", _handle_git_push)
     app.router.add_post("/vault/reindex", _handle_vault_reindex)
+    app.router.add_get("/vault/notes", _handle_vault_notes)
+    app.router.add_post("/vault/publish", _handle_vault_publish)
+    app.router.add_post("/vault/publish/apply", _handle_vault_publish_apply)
     app.router.add_post("/digest", _handle_digest)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)

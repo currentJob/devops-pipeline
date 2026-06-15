@@ -55,7 +55,8 @@ async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         "*트렌드 리서치 / 지식*\n"
         "`/stack` IT 트렌드 조사 → 중복 회피 → Obsidian vault 노트 생성\n"
         "`/reindex` vault 노트 재인덱싱 + MOC/Dashboard 갱신\n"
-        "`/digest` 최근 vault 노트 요약 주간 브리핑 노트 생성",
+        "`/digest` 최근 vault 노트 요약 주간 브리핑 노트 생성\n"
+        "`/notes` vault 노트 발행(✅)/비공개(⬜) 토글 → 발행 적용(export+push)",
         parse_mode="Markdown",
     )
 

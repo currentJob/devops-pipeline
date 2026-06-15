@@ -10,6 +10,13 @@
 2. `python scripts/publish_vault.py` 실행 → 발행 노트만 **`site/content/`**(git 추적)로 복사
 3. `site/content/` 커밋·푸시 → [`blog.yml`](../.github/workflows/blog.yml) 이 Quartz 로 빌드·배포
 
+### 발행 표시 방법
+
+- **로컬**: 노트 frontmatter 에 `publish: true` 직접 추가(또는 Obsidian Properties 체크박스).
+- **Telegram `/notes`**: 노트를 카테고리별로 나열해 ✅/⬜ 버튼으로 토글 → `🚀 발행 적용` 누르면
+  위 2~3 단계(export + `site/content` 커밋 + push)를 봇이 자동 수행. 발행 적용은 push 까지 가므로
+  인라인 확인 1단계를 거친다(워커에 `GITHUB_TOKEN` 필요).
+
 ```
 vault/ (비공개)            site/content/ (git 추적)        GitHub Pages
   publish:true 노트  ──export──▶  발행 노트만   ──push→Quartz──▶  사이트

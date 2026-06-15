@@ -29,6 +29,10 @@
 - SQLite 스키마 변경 (`store.py`)
 - 작업에 무관한 코드 "개선" (리팩토링 요청 없음)
 
+> **예외 — `/notes` 발행 적용**: 봇이 `main` 으로 push 하는 유일한 자동 경로.
+> 의도적으로 허용하되 스테이징을 `site/content/` 경로로 한정(`git_ops.commit_paths`)하고
+> 인라인 2차 확인 + 인가 chat 재확인으로 제한한다. 그 외 봇 push 는 여전히 human-gated.
+
 ---
 
 ## 🚫 Never (절대 금지)
