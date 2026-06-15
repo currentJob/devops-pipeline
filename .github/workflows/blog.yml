@@ -1,0 +1,69 @@
+# 기술 블로그 (Quartz v4) 빌드·배포.
+#
+# 소스 = site/content/ (scripts/publish_vault.py 가 vault 의 publish:true 노트만 export 한 것).
+#   vault/ 자체는 .gitignore(비공개)라 CI 에 없음 — 발행 노트만 git 에 들어온다.
+# Quartz 본체는 레포에 두지 않고 CI 에서 클론 → 우리는 site/quartz.config.ts 만 관리.
+#
+# 사전 1회 설정: 레포 Settings → Pages → Source 를 "GitHub Actions" 로 지정.
+name: Publish vault blog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/blog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 동시 배포 1건만 — 진행 중 실행을 취소하지 않고 큐잉
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Clone Quartz (v4)
+        run: git clone --depth 1 https://github.com/jackyzha0/quartz.git "$RUNNER_TEMP/quartz"
+
+      - name: Overlay config + published content
+        run: |
+          cp site/quartz.config.ts "$RUNNER_TEMP/quartz/quartz.config.ts"
+          rm -rf "$RUNNER_TEMP/quartz/content"
+          cp -r site/content "$RUNNER_TEMP/quartz/content"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install & build
+        working-directory: ${{ runner.temp }}/quartz
+        run: |
+          npm ci
+          npx quartz build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/quartz/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

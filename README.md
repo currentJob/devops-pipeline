@@ -161,7 +161,8 @@ devops-pipeline/
 ├── docker-compose.yml          # 로컬 빌드 구동 (+ vllm/monitoring 프로파일)
 ├── docker-compose.registry.yml # 레지스트리 이미지 override
 ├── Dockerfile / Dockerfile.vllm
-└── .github/workflows/          # ci.yml (lint·test·build·scan·push) · deploy.yml
+├── site/                       # vault → 기술 블로그(Quartz) 설정 (quartz.config.ts)
+└── .github/workflows/          # ci.yml · deploy.yml · blog.yml (vault 발행)
 ```
 
 ---
@@ -350,6 +351,10 @@ kubectl apply -f k8s/vllm/                          # GPU 노드 있을 때만
 ### `deploy.yml` — 수동 (`workflow_dispatch`)
 
 staging/production 선택 후 `kubectl set image` 로 롤링 배포 + Telegram 알림. **자동 배포는 일어나지 않습니다.**
+
+### `blog.yml` — 기술 블로그 (GitHub Pages)
+
+`vault/` 는 비공개(gitignore)이므로, `scripts/publish_vault.py` 가 **`publish: true`** 인 노트만 git 추적 `site/content/` 로 export → push 시 Quartz 가 빌드해 GitHub Pages 에 발행합니다(카테고리=폴더, 계층 태그=태그 페이지). 미발행 노트는 git 에 올라가지 않습니다. 최초 1회 **Settings → Pages → Source = GitHub Actions** 설정 필요. 상세는 [`site/README.md`](site/README.md).
 
 ---
 
