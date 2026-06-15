@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from app import config
-from app.bot.commands import _authorized, _dispatch_to_worker
+from app.bot.commands import _authorized, _dispatch_to_worker, _worker_post_json
 
 
 async def cmd_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -85,17 +85,8 @@ async def cmd_reindex(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> No
     if not _authorized(update):
         return
     await update.message.reply_text("🔄 vault 벡터 재인덱싱 중...")
-    try:
-        async with (
-            aiohttp.ClientSession() as session,
-            session.post(
-                config.WORKER_VAULT_REINDEX_URL,
-                timeout=aiohttp.ClientTimeout(total=180),
-            ) as resp,
-        ):
-            data = await resp.json()
-    except aiohttp.ClientError as e:
-        await update.message.reply_text(f"🔴 워커 연결 실패: {e}")
+    data = await _worker_post_json(update, config.WORKER_VAULT_REINDEX_URL, timeout=180)
+    if data is None:
         return
 
     if data.get("ok"):
@@ -111,17 +102,8 @@ async def cmd_digest(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> Non
     if not _authorized(update):
         return
     await update.message.reply_text("🗞️ 주간 브리핑 생성 중...")
-    try:
-        async with (
-            aiohttp.ClientSession() as session,
-            session.post(
-                config.WORKER_DIGEST_URL,
-                timeout=aiohttp.ClientTimeout(total=180),
-            ) as resp,
-        ):
-            data = await resp.json()
-    except aiohttp.ClientError as e:
-        await update.message.reply_text(f"🔴 워커 연결 실패: {e}")
+    data = await _worker_post_json(update, config.WORKER_DIGEST_URL, timeout=180)
+    if data is None:
         return
 
     detail = data.get("detail", "알 수 없음")
@@ -210,14 +192,11 @@ async def cmd_diff(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
-    """`/stack` — IT 트렌드를 조사해서 Obsidian vault 에 새 노트 생성. 중복 회피."""
-    if not _authorized(update):
-        return
+def _stack_prompt() -> str:
+    """/stack 워커 지시문 — 절차가 길어 핸들러에서 분리."""
     today = datetime.date.today().strftime("%Y-%m-%d")
     year = datetime.date.today().year
-    await _dispatch_to_worker(
-        update,
+    return (
         f"[STACK_TASK] 오늘 날짜: {today}. 다음 절차를 정확히 따라 실행해라.\n\n"
         "1. vault_search 도구로 다음 4가지 쿼리를 차례로 호출해 기존 노트 제목을 수집:\n"
         "   - 'IT 트렌드'\n"
@@ -252,5 +231,12 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
         "   - content: 위 마크다운\n"
         "   - category: 'IT 트렌드'\n"
         "   - tags: '트렌드,기술스택'\n"
-        "8. 응답: 저장된 노트 경로만 한 줄로 알려줘. 추가 설명 불필요.",
+        "8. 응답: 저장된 노트 경로만 한 줄로 알려줘. 추가 설명 불필요."
     )
+
+
+async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/stack` — IT 트렌드를 조사해서 Obsidian vault 에 새 노트 생성. 중복 회피."""
+    if not _authorized(update):
+        return
+    await _dispatch_to_worker(update, _stack_prompt())

@@ -40,6 +40,19 @@ def _format_uptime(seconds: float) -> str:
     return " ".join(parts)
 
 
+async def _worker_post_json(update: Update, url: str, *, timeout: int) -> dict | None:
+    """워커에 본문 없는 POST 후 JSON(dict) 반환. 통신 실패 시 에러 응답 후 None."""
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp,
+        ):
+            return await resp.json()
+    except aiohttp.ClientError as e:
+        await update.message.reply_text(f"🔴 워커 연결 실패: {e}")
+        return None
+
+
 async def _dispatch_to_worker(
     update: Update, description: str, save_to_vault: bool = False
 ) -> None:
