@@ -1,0 +1,38 @@
+# 의존성 자동 업데이트 — Dependabot 이 주 1회 버전 업 PR 을 연다.
+# 정책(A): PR 만 자동 생성, 머지는 사람이(CI 게이트 통과 확인 후).
+# minor/patch 는 묶어 1개 PR, major 는 개별 PR(breaking 검토 격리).
+version: 2
+updates:
+  # Python 의존성 (uv: pyproject.toml + uv.lock)
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Chore"
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions 버전 (.github/workflows 의 @vN)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "Ci"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Docker 베이스 이미지 (Dockerfile, Dockerfile.vllm 의 FROM 태그)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "Chore"
+    groups:
+      docker-minor-patch:
+        update-types: ["minor", "patch"]
