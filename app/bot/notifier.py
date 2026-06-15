@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import TelegramError
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from app import config
@@ -54,11 +55,16 @@ async def request_approval(app: Application, task_id: str, message: str) -> bool
 
 
 async def send_message(app: Application, text: str) -> None:
-    await app.bot.send_message(
-        chat_id=config.TELEGRAM_CHAT_ID,
-        text=text,
-        parse_mode="Markdown",
-    )
+    # Markdown 파싱 실패(불균형 특수문자) 시 평문으로 폴백 — 알림 유실 방지.
+    try:
+        await app.bot.send_message(
+            chat_id=config.TELEGRAM_CHAT_ID,
+            text=text,
+            parse_mode="Markdown",
+        )
+    except TelegramError as e:
+        logger.warning("Markdown 전송 실패 → 평문 재시도: %s", e)
+        await app.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=text)
 
 
 async def _handle_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
