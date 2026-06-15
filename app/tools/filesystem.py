@@ -12,8 +12,10 @@ def _safe_path(rel: str) -> Path:
         raise ValueError(f"absolute path 거부: {rel}")
     if ".." in rel.replace("\\", "/").split("/"):
         raise ValueError(f"path traversal 거부: {rel}")
-    p = (WORKSPACE / rel).resolve()
-    if not str(p).startswith(str(WORKSPACE)):
+    # 심볼릭 링크까지 해소한 뒤 경로 포함 관계로 검사 (prefix 문자열 비교의 오탐 회피)
+    root = WORKSPACE.resolve()
+    p = (root / rel).resolve()
+    if not p.is_relative_to(root):
         raise ValueError(f"workspace 이탈: {rel}")
     return p
 
