@@ -132,17 +132,25 @@ async def _store_summary(task_id: str, description: str, result: str, failed: bo
 
 
 async def _worker_loop() -> None:
-    """큐에서 작업을 꺼내 세마포어로 동시성을 제어하며 실행."""
+    """동시성 슬롯(세마포어)을 먼저 확보한 뒤 작업을 꺼내 실행.
+
+    슬롯을 먼저 잡아 초과 작업이 큐에 그대로 쌓이게 한다 — 그래야 큐 maxsize
+    (WORKER_QUEUE_SIZE)·429 백프레셔가 실제로 동작하고 QUEUE_SIZE 메트릭이 유효하다.
+    슬롯을 즉시 꺼내 쓰던 기존 방식은 큐를 순식간에 비워 백프레셔를 무력화했다.
+    """
     while True:
+        await _semaphore.acquire()
         job = await _queue.get()
         metrics.QUEUE_SIZE.set(_queue.qsize())
-        _spawn(_run_with_semaphore(job))
-        _queue.task_done()
+        _spawn(_run_and_release(job))
 
 
-async def _run_with_semaphore(job: _Job) -> None:
-    async with _semaphore:
+async def _run_and_release(job: _Job) -> None:
+    try:
         await _process_task(job)
+    finally:
+        _semaphore.release()
+        _queue.task_done()
 
 
 async def _handle_run(request: web.Request) -> web.Response:

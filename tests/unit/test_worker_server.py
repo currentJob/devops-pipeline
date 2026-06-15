@@ -52,6 +52,41 @@ async def test_handle_run_rejects_empty_description(monkeypatch):
     assert resp.status == 400
 
 
+async def test_worker_loop_limits_concurrency_and_queues_excess(monkeypatch):
+    """슬롯 선확보로 동시 실행은 max_concurrent 로 제한되고 초과분은 큐에 남는다."""
+    server._semaphore = asyncio.Semaphore(1)
+    server._queue = asyncio.Queue(maxsize=5)
+    monkeypatch.setattr(server.metrics.QUEUE_SIZE, "set", lambda _v: None)
+
+    running = 0
+    max_running = 0
+    started = asyncio.Semaphore(0)  # 작업 시작 시그널
+    release = asyncio.Event()
+
+    async def fake_process(_job):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        started.release()
+        await release.wait()
+        running -= 1
+
+    monkeypatch.setattr(server, "_process_task", fake_process)
+
+    loop_task = asyncio.create_task(server._worker_loop())
+    try:
+        for i in range(3):
+            server._queue.put_nowait(server._Job(f"t{i}", "d"))
+        await asyncio.wait_for(started.acquire(), timeout=1)  # 첫 작업 시작 대기
+        await asyncio.sleep(0.05)  # 두 번째가 (잘못) 시작될 여유를 주고 확인
+
+        assert max_running == 1  # 동시 실행 1개로 제한
+        assert server._queue.qsize() == 2  # 나머지는 큐에 — 백프레셔 유효
+    finally:
+        release.set()
+        loop_task.cancel()
+
+
 async def test_spawn_keeps_strong_reference_until_done():
     done = asyncio.Event()
 
