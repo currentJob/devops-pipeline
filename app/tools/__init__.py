@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import inspect
+import asyncio
 import logging
 from collections.abc import Callable
 
@@ -26,6 +26,10 @@ _TOOL_HANDLERS: dict[str, Callable] = {
         a.get("aliases", ""),
     ),
 }
+
+# 코루틴(async) 도구 — 나머지(파일 I/O·Qdrant 임베딩)는 블로킹 동기 함수다.
+# 새 async 도구 추가 시 여기에 등록할 것 (execute 의 디스패치가 이 집합으로 분기).
+_ASYNC_TOOLS: frozenset[str] = frozenset({"bash", "recent_research"})
 
 TOOLS_SCHEMA = [
     {
@@ -198,9 +202,12 @@ async def execute(name: str, args: dict) -> str:
     if handler is None:
         return f"알 수 없는 도구: {name}"
     try:
-        result = handler(args)
-        if inspect.isawaitable(result):
-            result = await result
+        if name in _ASYNC_TOOLS:
+            result = await handler(args)
+        else:
+            # 동기 도구(파일 I/O·Qdrant 임베딩 검색/저장)는 블로킹이므로 스레드로
+            # 오프로드해 이벤트 루프(동시 실행 중인 다른 작업)를 막지 않는다.
+            result = await asyncio.to_thread(handler, args)
         return _trim(result)
     except KeyError as e:
         return f"필수 인자 누락: {e}"

@@ -170,6 +170,27 @@ async def test_execute_read_file():
 
 
 @pytest.mark.asyncio
+async def test_execute_offloads_sync_tool_to_thread():
+    # 동기 도구(블로킹)는 이벤트 루프가 아닌 워커 스레드에서 실행되어야 한다.
+    import threading
+
+    main_ident = threading.get_ident()
+    tools._TOOL_HANDLERS["__thread__"] = lambda _a: str(threading.get_ident())
+    try:
+        out = await tools.execute("__thread__", {})
+        assert out != str(main_ident)
+    finally:
+        del tools._TOOL_HANDLERS["__thread__"]
+
+
+@pytest.mark.asyncio
+async def test_execute_async_tool_awaited_inline():
+    # async 도구(bash)는 await 경로로 실행 (allowlist 거부는 subprocess 없이 반환)
+    out = await tools.execute("bash", {"command": "rm -rf /"})
+    assert "실행 거부" in out
+
+
+@pytest.mark.asyncio
 async def test_execute_trims_long_output():
     # tool-use 루프 컨텍스트 보호: 4000자 초과 결과는 트림
     tools._TOOL_HANDLERS["__big__"] = lambda _a: "x" * 10000
