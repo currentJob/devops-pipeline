@@ -122,9 +122,7 @@ async def _apply_and_report(query) -> None:
             f"🚀 발행 적용\n\n→ ✅ 완료 (공개 {data.get('count', '?')}개)\n{data.get('detail', '')}"
         )
     else:
-        await query.edit_message_text(
-            f"🚀 발행 적용\n\n→ 🔴 실패\n{data.get('detail', '')}"
-        )
+        await query.edit_message_text(f"🚀 발행 적용\n\n→ 🔴 실패\n{data.get('detail', '')}")
 
 
 async def handle_notes_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
