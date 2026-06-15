@@ -112,11 +112,11 @@
 전체 작업 큐가 끝나고 자체 검증을 모두 통과했을 때만 발송한다. 중간 작업 단위에서는 발송 안 함 (노이즈 최소화):
 
 ```bash
-uv run python -m tools.notify "✅ *04 구현 완료* — N개 작업 완료, 자체 검증 통과. 다음: 05 검수"
+uv run python -m cli.notify "✅ *04 구현 완료* — N개 작업 완료, 자체 검증 통과. 다음: 05 검수"
 ```
 
 자체 검증 실패로 중단된 경우:
 
 ```bash
-uv run python -m tools.notify "⛔ *04 구현 중단* — 작업 K번째에서 검증 실패. \`prompts/output/04_implementation_log.md\` 의 \"미해결 항목\" 확인"
+uv run python -m cli.notify "⛔ *04 구현 중단* — 작업 K번째에서 검증 실패. \`prompts/output/04_implementation_log.md\` 의 \"미해결 항목\" 확인"
 ```

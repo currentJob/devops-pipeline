@@ -90,7 +90,7 @@
 본 단계가 끝나면 다음 명령을 실행하여 텔레그램으로 완료를 알린다:
 
 ```bash
-uv run python -m tools.notify "✅ *01 분석 완료* — \`prompts/output/01_analysis_report.md\` 생성됨. 다음: 02 리서치"
+uv run python -m cli.notify "✅ *01 분석 완료* — \`prompts/output/01_analysis_report.md\` 생성됨. 다음: 02 리서치"
 ```
 
 알림 전송 실패는 워크플로를 막지 않는다. 단, 종료 코드 ≠ 0 이면 04 구현 로그에 기록한다.

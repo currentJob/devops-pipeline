@@ -4,9 +4,9 @@
 stdlib 만 사용 — 호스트에 별도 의존성 불필요.
 
 사용:
-    python tools/notify.py "메시지 내용"
-    python tools/notify.py --dry-run "메시지 내용"
-    echo "메시지" | python tools/notify.py -
+    python cli/notify.py "메시지 내용"
+    python cli/notify.py --dry-run "메시지 내용"
+    echo "메시지" | python cli/notify.py -
 
 종료 코드:
     0  전송 성공 (또는 dry-run 성공)
@@ -50,7 +50,7 @@ def _post(url: str, text: str, timeout: float) -> tuple[int, str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="tools.notify",
+        prog="cli.notify",
         description="작업 완료 시 봇 컨테이너의 HTTP 엔드포인트로 텔레그램 알림 요청",
     )
     parser.add_argument("message", help='메시지. "-" 면 stdin 에서 읽음')

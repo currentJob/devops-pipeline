@@ -155,11 +155,11 @@ docker build -t devops-pipeline:review .
 통과 시:
 
 ```bash
-uv run python -m tools.notify "✅ *05 검수 통과* — 차단 0건, 우려 N건. 다음: 06 테스트"
+uv run python -m cli.notify "✅ *05 검수 통과* — 차단 0건, 우려 N건. 다음: 06 테스트"
 ```
 
 차단 시:
 
 ```bash
-uv run python -m tools.notify "⛔ *05 검수 차단* — 차단 N건. \`prompts/output/05_review_report.md\` 의 \"3. 차단 항목\" 확인 후 04 단계로 회귀 필요"
+uv run python -m cli.notify "⛔ *05 검수 차단* — 차단 N건. \`prompts/output/05_review_report.md\` 의 \"3. 차단 항목\" 확인 후 04 단계로 회귀 필요"
 ```

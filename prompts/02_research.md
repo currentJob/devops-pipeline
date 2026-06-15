@@ -92,5 +92,5 @@
 ## 완료 알림 (Completion Notification)
 
 ```bash
-uv run python -m tools.notify "✅ *02 리서치 완료* — \`prompts/output/02_research_brief.md\` 생성됨. 다음: 03 설계 (사람 승인 게이트)"
+uv run python -m cli.notify "✅ *02 리서치 완료* — \`prompts/output/02_research_brief.md\` 생성됨. 다음: 03 설계 (사람 승인 게이트)"
 ```

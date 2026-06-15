@@ -122,5 +122,5 @@
 설계 문서 작성이 끝나면(승인 대기 진입 시점) 다음을 실행한다. 사람이 즉시 검토할 수 있도록 알린다:
 
 ```bash
-uv run python -m tools.notify "⏸️ *03 설계 완료 — 승인 대기* \`prompts/output/03_design_doc.md\` 검토 후 \"04 진행\" 으로 응답해주세요"
+uv run python -m cli.notify "⏸️ *03 설계 완료 — 승인 대기* \`prompts/output/03_design_doc.md\` 검토 후 \"04 진행\" 으로 응답해주세요"
 ```

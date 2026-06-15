@@ -1,4 +1,4 @@
-"""tools/notify.py 단위 테스트.
+"""cli/notify.py 단위 테스트.
 
 새 인터페이스는 HTTP POST 기반이므로 _post 를 모킹한다.
 """
@@ -8,7 +8,7 @@ from __future__ import annotations
 import io
 import urllib.error
 
-from tools import notify
+from cli import notify
 
 
 def test_read_message_from_arg():

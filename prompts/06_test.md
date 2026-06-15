@@ -140,11 +140,11 @@ L3 또는 L4 에서 1건이라도 실패 시:
 릴리스 가능 시:
 
 ```bash
-uv run python -m tools.notify "🎉 *전체 사이클 완료 — 릴리스 가능* L1 단위: 통과 N건, 커버리지 X%. L3 컨테이너: 이미지 NN MB, 취약점 HIGH N건. 후속 작업 K개"
+uv run python -m cli.notify "🎉 *전체 사이클 완료 — 릴리스 가능* L1 단위: 통과 N건, 커버리지 X%. L3 컨테이너: 이미지 NN MB, 취약점 HIGH N건. 후속 작업 K개"
 ```
 
 릴리스 차단 시:
 
 ```bash
-uv run python -m tools.notify "⛔ *06 테스트 — 릴리스 차단* 실패 계층: [L1/L2/L3/L4]. 상세는 \`prompts/output/06_test_report.md\` 확인"
+uv run python -m cli.notify "⛔ *06 테스트 — 릴리스 차단* 실패 계층: [L1/L2/L3/L4]. 상세는 \`prompts/output/06_test_report.md\` 확인"
 ```
