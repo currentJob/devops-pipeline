@@ -69,6 +69,9 @@ async def send_message(app: Application, text: str) -> None:
 
 async def _handle_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
+    if update.effective_chat.id != config.TELEGRAM_CHAT_ID:  # 인가된 chat 만 (defense-in-depth)
+        await query.answer("권한 없음")
+        return
     action, task_id = query.data.split(":", 1)
 
     if task_id not in _pending:

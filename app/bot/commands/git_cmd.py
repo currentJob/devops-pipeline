@@ -77,6 +77,9 @@ async def cmd_commit(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> Non
 
 async def handle_commit_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
+    if not _authorized(update):  # 콜백도 인가된 chat 에서만 (defense-in-depth)
+        await query.answer("권한 없음")
+        return
     action, token = query.data.split(":", 1)
 
     message = _pending.pop(token, None)
@@ -172,6 +175,9 @@ async def cmd_push(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def handle_push_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
+    if not _authorized(update):  # 콜백도 인가된 chat 에서만 (defense-in-depth)
+        await query.answer("권한 없음")
+        return
     action, token = query.data.split(":", 1)
 
     branch = _pending_push.pop(token, None)
