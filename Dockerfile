@@ -46,6 +46,8 @@ ENV PYTHONUNBUFFERED=1
 
 # 소스 복사
 COPY app/ ./app/
+# scripts: publish_ops 가 발행 export 로직(publish_vault.py)을 재사용 — 이미지에 필요
+COPY scripts/ ./scripts/
 # vendored last30days 스킬 — recent_research 도구가 호출하는 CLI (서드파티 의존성 없음)
 COPY vendor/ ./vendor/
 
