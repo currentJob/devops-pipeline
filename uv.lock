@@ -440,7 +440,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "python-telegram-bot", specifier = ">=22.7" },
     { name = "qdrant-client", extras = ["fastembed"], specifier = ">=1.18.0" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.50" },
 ]
 
 [package.metadata.requires-dev]
