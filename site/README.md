@@ -45,7 +45,7 @@ tags: [tech/qdrant]
 
 ```bash
 python scripts/publish_vault.py                       # vault → site/content
-git clone https://github.com/jackyzha0/quartz.git /tmp/quartz
+git clone --branch v4 https://github.com/jackyzha0/quartz.git /tmp/quartz
 cp site/quartz.config.ts /tmp/quartz/quartz.config.ts
 rm -rf /tmp/quartz/content && cp -r site/content /tmp/quartz/content
 cd /tmp/quartz && npm i && npx quartz build --serve   # http://localhost:8080

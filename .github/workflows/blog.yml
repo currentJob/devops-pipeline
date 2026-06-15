@@ -32,8 +32,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Clone Quartz (v4)
-        run: git clone --depth 1 https://github.com/jackyzha0/quartz.git "$RUNNER_TEMP/quartz"
+      - name: Clone Quartz (v4 pinned)
+        # 기본 브랜치는 v5 로 바뀌었고 config 형식이 다르다 — v4 브랜치로 고정.
+        run: git clone --depth 1 --branch v4 https://github.com/jackyzha0/quartz.git "$RUNNER_TEMP/quartz"
 
       - name: Overlay config + published content
         run: |
