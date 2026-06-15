@@ -141,6 +141,7 @@ async def _run_claude(system: str, user_content: str, task_id: str, schema: list
     client = _claude_client()
     messages: list[dict] = [{"role": "user", "content": user_content}]
     step = 0
+    last_text = ""  # 도구 호출과 함께 나온 직전 텍스트 — 최대 반복 도달 시 폐기하지 않음
     for _ in range(config.WORKER_MAX_ITERATIONS):
         resp = await client.messages.create(
             model=config.WORKER_MODEL,
@@ -150,8 +151,11 @@ async def _run_claude(system: str, user_content: str, task_id: str, schema: list
             max_tokens=config.WORKER_MAX_TOKENS,
         )
         messages.append({"role": "assistant", "content": [b.model_dump() for b in resp.content]})
+        text = "".join(b.text for b in resp.content if b.type == "text").strip()
         if resp.stop_reason != "tool_use":
-            return "".join(b.text for b in resp.content if b.type == "text").strip()
+            return text
+        if text:
+            last_text = text
         results: list[dict] = []
         for b in resp.content:
             if b.type == "tool_use":
@@ -160,7 +164,7 @@ async def _run_claude(system: str, user_content: str, task_id: str, schema: list
                 out = await execute(b.name, dict(b.input))
                 results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
         messages.append({"role": "user", "content": results})
-    return "(최대 반복 도달 — 부분 결과 없음)"
+    return last_text or "(최대 반복 도달 — 부분 결과 없음)"
 
 
 async def _run_vllm(system: str, user_content: str, task_id: str, schema: list[dict]) -> str:
@@ -170,6 +174,7 @@ async def _run_vllm(system: str, user_content: str, task_id: str, schema: list[d
         {"role": "user", "content": user_content},
     ]
     step = 0
+    last_text = ""  # 도구 호출과 함께 나온 직전 텍스트 — 최대 반복 도달 시 폐기하지 않음
     for _ in range(config.WORKER_MAX_ITERATIONS):
         resp = await client.chat.completions.create(
             model=config.VLLM_MODEL,
@@ -179,8 +184,11 @@ async def _run_vllm(system: str, user_content: str, task_id: str, schema: list[d
         )
         msg = resp.choices[0].message
         messages.append(msg.model_dump(exclude_none=True))
+        text = (msg.content or "").strip()
         if not msg.tool_calls:
-            return (msg.content or "").strip()
+            return text
+        if text:
+            last_text = text
         for tc in msg.tool_calls:
             step += 1
             try:
@@ -192,7 +200,7 @@ async def _run_vllm(system: str, user_content: str, task_id: str, schema: list[d
             )
             out = await execute(tc.function.name, args)
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": out})
-    return "(최대 반복 도달 — 부분 결과 없음)"
+    return last_text or "(최대 반복 도달 — 부분 결과 없음)"
 
 
 async def run_agent(route: str, system: str, user_content: str, task_id: str) -> str:

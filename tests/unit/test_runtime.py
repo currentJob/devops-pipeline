@@ -110,6 +110,29 @@ async def test_run_agent_max_iter_guard(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_agent_max_iter_returns_partial_text(monkeypatch):
+    # 최대 반복 도달 시, 도구 호출과 함께 나온 직전 텍스트를 폐기하지 않고 반환
+    async def fake_execute(_name, _args):
+        return "loop"
+
+    monkeypatch.setattr(runtime, "execute", fake_execute)
+    _patch_client(
+        monkeypatch,
+        [
+            _Resp(
+                "tool_use",
+                [
+                    _Block("text", text="중간 분석 결과"),
+                    _Block("tool_use", name="bash", input={"command": "ls"}, id="t"),
+                ],
+            )
+        ],
+    )
+    result = await runtime.run_agent("code", "sys", "user", "tid")
+    assert result == "중간 분석 결과"
+
+
+@pytest.mark.asyncio
 async def test_chat_returns_text(monkeypatch):
     _patch_client(monkeypatch, [_Resp("end_turn", [_Block("text", text="요약문")])])
     assert await runtime.chat("system", "user") == "요약문"
