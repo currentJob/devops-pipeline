@@ -80,3 +80,11 @@ Detailed rules live in .claude/rules/ — they extend but do not override the pr
 - boundaries.md  — what to do autonomously vs. ask first vs. never
 - git-workflow.md — commit conventions for this project
 - security.md     — pre-commit security checklist
+
+9. Work Division & Workflow Routing
+Scale rigor to task complexity. Two distinct actors with different mandates:
+
+- Work division: the deployed Telegram bot/worker agents NEVER modify code. Their tools are sandboxed to research, documentation, and `prompts/output/` artifacts (write_file → `prompts/output/` only, bash → read-only allowlist, vault_save → `vault/` only). Applying code changes is the job of the local coding agent (Claude Code), not the bot. `/commit`·`/push` stay human-gated and only commit docs/output/vault changes.
+- Routing by complexity (for the LOCAL coding agent):
+  - Light requests (small edits, single-file fixes, questions, explanations) → follow the principles in this CLAUDE.md and proceed proportionally. No heavyweight process.
+  - Substantial changes (new features, 3+ files, public API / data-contract / schema changes) → treat the 6-stage workflow in `prompts/01~06.md` (analyze → research → design → implement → review → test) as the standard, including its human-approval gates at stages 03 and 05. Scale down for smaller work.
