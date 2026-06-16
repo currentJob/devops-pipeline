@@ -205,6 +205,10 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD 를 .env 에 설정하세요}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=http://localhost:3000
+      # 알림(provisioning/alerting) → Telegram contact point 가 참조. 봇 토큰 재사용.
+      # 미설정 시 알림 전송만 비활성(대시보드는 정상).
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       # Postgres 데이터소스 프로비저닝(provisioning/datasources/postgres.yml)이 참조.
       # Task 이력 DB 패널은 --profile postgres 동시 실행 시 동작.
       - POSTGRES_HOST=postgres
