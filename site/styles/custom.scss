@@ -33,6 +33,119 @@ html {
   animation: vault-fade-in 0.45s ease both;
 }
 
+// --- 1.5 반응형 폭: 고정 캡 완화 + 본문 가독성 상한 ----------------
+// Quartz 기본은 .page 를 1500px 로 고정 → 넓은 모니터에서 양옆 여백.
+// 창 크기에 따라 유동적으로 넓어지되, 초와이드에선 상한을 둔다.
+.page {
+  max-width: min(92vw, 2000px);
+}
+
+// 본문(읽기 컬럼)은 가독성을 위해 폭을 제한하고 가운데 정렬.
+// 현재(약 850px)보다 넓되 줄이 과하게 길어지지 않는 선(68rem ≈ 1088px).
+// 컬럼이 더 좁으면(작은 창) 자동으로 그 폭에 맞춰 줄어든다(유동).
+.center > article {
+  max-width: 68rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+// --- 1.7 실제 블로그형 레이아웃: 전체폭 스티키 헤더 ---------------
+// quartz.layout.ts 가 타이틀·검색·다크모드를 header 영역으로 옮긴다.
+// Quartz 기본 그리드는 grid-header 가 가운데 컬럼에만 걸리므로,
+// 헤더가 상단 전체 행을 차지하도록 grid-template-areas 를 재배치한다.
+//
+// ⚠️ transform/filter 는 그리드 컨테이너(.page/#quartz-body)나 사이드바의
+//    조상에 두지 않는다(sticky 붕괴 방지). 헤더는 사이드바의 형제라 안전.
+:root {
+  --vault-header-h: 3.6rem;
+}
+
+// 데스크톱(>1200px): 헤더가 좌·중·우 전체 상단 행
+.page > #quartz-body {
+  grid-template-areas:
+    "grid-header grid-header grid-header"
+    "grid-sidebar-left grid-center grid-sidebar-right"
+    "grid-sidebar-left grid-footer grid-sidebar-right";
+}
+
+// 태블릿(800~1200px): 좌 사이드바 + 본문, 헤더는 상단 전체 행
+@media all and (min-width: 800px) and (max-width: 1200px) {
+  .page > #quartz-body {
+    grid-template-areas:
+      "grid-header grid-header"
+      "grid-sidebar-left grid-center"
+      "grid-sidebar-left grid-sidebar-right"
+      "grid-sidebar-left grid-footer";
+  }
+}
+
+// 모바일(<800px): 헤더를 맨 위로 (기본은 좌 사이드바가 먼저였음)
+@media all and (max-width: 800px) {
+  .page > #quartz-body {
+    grid-template-areas:
+      "grid-header"
+      "grid-sidebar-left"
+      "grid-center"
+      "grid-sidebar-right"
+      "grid-footer";
+  }
+}
+
+// 헤더 바: 스티키 상단, 타이틀 좌 / 검색·다크모드 우
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 !important; // base 의 margin-top: 6rem 제거
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  min-height: var(--vault-header-h);
+  padding: 0.65rem clamp(1rem, 3vw, 2.2rem);
+  background: color-mix(in srgb, var(--light) 86%, transparent);
+  backdrop-filter: saturate(160%) blur(8px);
+  -webkit-backdrop-filter: saturate(160%) blur(8px);
+  border-bottom: 1px solid var(--lightgray);
+}
+
+.page-header > .page-title {
+  margin: 0 auto 0 0; // 타이틀 좌측, 나머지 컨트롤 우측으로 밀기
+  font-size: 1.3rem;
+}
+
+.page-header > .flex {
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 1 26rem; // 검색바가 늘어나되 과하지 않게
+}
+
+// 스티키 헤더 높이만큼 사이드바를 아래로 — 헤더에 가리지 않게
+@media all and (min-width: 800px) {
+  #quartz-body .sidebar {
+    padding-top: 1.6rem;
+  }
+  #quartz-body .sidebar.left {
+    top: var(--vault-header-h);
+    height: calc(100vh - var(--vault-header-h));
+  }
+}
+@media all and (min-width: 1200px) {
+  #quartz-body .sidebar.right {
+    top: var(--vault-header-h);
+    height: calc(100vh - var(--vault-header-h));
+  }
+}
+
+// 푸터: 상단 구분선 + 차분한 정렬
+#quartz-body footer {
+  margin-top: 2.5rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--lightgray);
+  color: var(--gray);
+  font-size: 0.85rem;
+}
+
 // --- 2. 사이트 타이틀: 그라데이션 텍스트 -------------------------
 // (text-fill 실패 시 대비해 fallback color 를 먼저 지정)
 .page-title {

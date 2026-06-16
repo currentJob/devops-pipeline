@@ -39,6 +39,8 @@ jobs:
       - name: Overlay config + custom styles + published content
         run: |
           cp site/quartz.config.ts "$RUNNER_TEMP/quartz/quartz.config.ts"
+          # 블로그형 레이아웃(헤더/사이드바/푸터) — quartz.layout.ts 오버레이
+          cp site/quartz.layout.ts "$RUNNER_TEMP/quartz/quartz.layout.ts"
           # 모던 테크 커스텀 스타일/애니메이션 — Quartz 의 custom.scss 오버레이
           cp site/styles/custom.scss "$RUNNER_TEMP/quartz/quartz/styles/custom.scss"
           rm -rf "$RUNNER_TEMP/quartz/content"
