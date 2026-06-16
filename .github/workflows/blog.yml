@@ -36,9 +36,11 @@ jobs:
         # 기본 브랜치는 v5 로 바뀌었고 config 형식이 다르다 — v4 브랜치로 고정.
         run: git clone --depth 1 --branch v4 https://github.com/jackyzha0/quartz.git "$RUNNER_TEMP/quartz"
 
-      - name: Overlay config + published content
+      - name: Overlay config + custom styles + published content
         run: |
           cp site/quartz.config.ts "$RUNNER_TEMP/quartz/quartz.config.ts"
+          # 모던 테크 커스텀 스타일/애니메이션 — Quartz 의 custom.scss 오버레이
+          cp site/styles/custom.scss "$RUNNER_TEMP/quartz/quartz/styles/custom.scss"
           rm -rf "$RUNNER_TEMP/quartz/content"
           cp -r site/content "$RUNNER_TEMP/quartz/content"
 

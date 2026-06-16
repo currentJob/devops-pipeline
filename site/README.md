@@ -40,6 +40,7 @@ tags: [tech/qdrant]
 ## 구성
 
 - [`quartz.config.ts`](quartz.config.ts) — Quartz 설정(우리가 관리). Quartz 본체는 CI 에서 클론.
+- [`styles/custom.scss`](styles/custom.scss) — 모던 테크 디자인·애니메이션 커스텀 CSS. CI 가 클론한 Quartz 의 `quartz/styles/custom.scss` 로 덮어쓴다.
 - `content/` — `publish_vault.py` 가 생성하는 발행물(git 추적). 직접 편집하지 말 것.
 - 빌드·배포 — [`.github/workflows/blog.yml`](../.github/workflows/blog.yml)
 
@@ -54,6 +55,7 @@ tags: [tech/qdrant]
 python scripts/publish_vault.py                       # vault → site/content
 git clone --branch v4 https://github.com/jackyzha0/quartz.git /tmp/quartz
 cp site/quartz.config.ts /tmp/quartz/quartz.config.ts
+cp site/styles/custom.scss /tmp/quartz/quartz/styles/custom.scss   # 모던 테크 스타일/애니메이션
 rm -rf /tmp/quartz/content && cp -r site/content /tmp/quartz/content
 cd /tmp/quartz && npm i && npx quartz build --serve   # http://localhost:8080
 ```

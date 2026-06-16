@@ -1,0 +1,296 @@
+// =============================================================
+//  DevOps Vault — 모던 테크 커스텀 스타일 + 애니메이션
+//  Quartz v4 의 공식 커스터마이즈 포인트(quartz/styles/custom.scss).
+//  CI(blog.yml)가 이 파일을 클론한 Quartz 위에 덮어쓴다.
+//
+//  색상은 quartz.config.ts 의 theme.colors 에서 CSS 변수로 주입된다:
+//    --light --lightgray --gray --darkgray --dark --secondary --tertiary
+//    --highlight --textHighlight
+//  여기서는 그 변수를 활용해 타이포·여백·애니메이션만 세련되게 다듬는다.
+// =============================================================
+
+// --- 0. 전역 트랜지션 (테마 전환·호버를 부드럽게) ----------------
+* {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.2s ease;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+// --- 1. 페이지 진입 애니메이션 -----------------------------------
+@keyframes vault-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.center {
+  animation: vault-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+// 사이드바는 살짝 더 늦게 떠오르게 — 계단식 진입감
+.left,
+.right {
+  animation: vault-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+
+// --- 2. 사이트 타이틀: 그라데이션 + 호버 ------------------------
+.page-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--secondary), var(--tertiary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.82;
+  }
+}
+
+// --- 3. 본문 타이포 ---------------------------------------------
+body {
+  font-feature-settings: "liga" 1, "calt" 1; // 합자/문맥 대체
+}
+
+article {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    letter-spacing: -0.015em;
+    scroll-margin-top: 2rem;
+  }
+
+  // 본문 첫 h1 아래 액센트 라인
+  > h1:first-of-type {
+    padding-bottom: 0.3em;
+    border-bottom: 2px solid var(--lightgray);
+  }
+
+  p {
+    line-height: 1.72;
+  }
+}
+
+// --- 4. 링크: 슬라이드 인 언더라인 -------------------------------
+article a.internal,
+article p > a,
+article li > a {
+  text-decoration: none;
+  background-image: linear-gradient(var(--tertiary), var(--tertiary));
+  background-size: 0% 2px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition:
+    background-size 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s ease;
+
+  &:hover {
+    background-size: 100% 2px;
+    color: var(--tertiary);
+  }
+}
+
+// 내부 링크 칩(.internal) 기본 배경은 끄고 위 언더라인으로 통일
+article a.internal {
+  background-color: transparent;
+}
+
+// --- 5. 코드 블록 / 인라인 코드 ----------------------------------
+code {
+  border-radius: 6px;
+  font-size: 0.92em;
+}
+
+pre {
+  border: 1px solid var(--lightgray);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+
+  &:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  }
+}
+
+// --- 6. 글 목록(폴더·태그·인덱스 페이지)을 카드로 -----------------
+ul.section-ul > li.section-li {
+  padding: 0.9rem 1.1rem;
+  margin: 0.55rem 0;
+  border: 1px solid var(--lightgray);
+  border-radius: 12px;
+  background: var(--light);
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: var(--secondary);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  .section {
+    border: none;
+  }
+
+  .meta {
+    color: var(--gray);
+    font-size: 0.82rem;
+  }
+
+  h3 {
+    margin: 0.15rem 0;
+  }
+}
+
+// --- 7. 태그 칩 --------------------------------------------------
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding-left: 0;
+
+  > li {
+    margin: 0;
+  }
+
+  a.tag-link,
+  a.internal.tag-link {
+    background-color: var(--highlight);
+    color: var(--secondary);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 0.18rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease,
+      border-color 0.2s ease;
+
+    &:hover {
+      background-color: var(--secondary);
+      color: var(--light);
+      border-color: var(--secondary);
+    }
+  }
+}
+
+// --- 8. 콜아웃(Callout) 다듬기 -----------------------------------
+.callout {
+  border-radius: 10px;
+  border: 1px solid var(--lightgray);
+  border-left-width: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+// --- 9. 인용문 --------------------------------------------------
+blockquote {
+  border-left: 3px solid var(--secondary);
+  background: var(--highlight);
+  border-radius: 0 8px 8px 0;
+  padding: 0.4rem 1rem;
+  font-style: normal;
+}
+
+// --- 10. Explorer / TOC 인터랙션 ---------------------------------
+.explorer {
+  .folder-button,
+  a {
+    border-radius: 6px;
+    transition: background-color 0.18s ease;
+  }
+
+  ul li > a:hover,
+  .folder-button:hover {
+    background-color: var(--highlight);
+  }
+}
+
+.toc {
+  .toc-content ul li a {
+    transition:
+      color 0.18s ease,
+      padding-left 0.18s ease;
+
+    &:hover {
+      color: var(--tertiary);
+      padding-left: 0.3rem;
+    }
+  }
+}
+
+// --- 11. 검색·다크모드 버튼 호버 ---------------------------------
+.search > .search-button,
+.darkmode > #darkmode-span,
+.darkmode > svg {
+  border-radius: 8px;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease;
+
+  &:hover {
+    transform: scale(1.06);
+  }
+}
+
+// --- 12. 커스텀 스크롤바 ----------------------------------------
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--lightgray);
+  border-radius: 999px;
+
+  &:hover {
+    background: var(--gray);
+  }
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+// --- 13. 푸터 ---------------------------------------------------
+.footer {
+  border-top: 1px solid var(--lightgray);
+  padding-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--gray);
+}
+
+// --- 14. 접근성: 모션 줄이기 선호 시 애니메이션 비활성 ------------
+@media (prefers-reduced-motion: reduce) {
+  *,
+  .center,
+  .left,
+  .right {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -14,7 +14,7 @@ import * as Plugin from "./quartz/plugins"
  */
 const config: QuartzConfig = {
   configuration: {
-    pageTitle: "DevOps Vault — 기술 노트",
+    pageTitle: "DevOps Vault",
     pageTitleSuffix: "",
     enableSPA: true,
     enablePopovers: true,
@@ -28,31 +28,33 @@ const config: QuartzConfig = {
       cdnCaching: true,
       typography: {
         header: "Schibsted Grotesk",
-        body: "Source Sans Pro",
+        body: "Inter",
         code: "IBM Plex Mono",
       },
       colors: {
+        // 모던 테크 팔레트 — 차분한 뉴트럴 + 블루→시안 액센트.
+        // 세부 효과(그라데이션·애니메이션)는 styles/custom.scss 에서.
         lightMode: {
-          light: "#faf8f8",
-          lightgray: "#e5e5e5",
-          gray: "#b8b8b8",
-          darkgray: "#4e4e4e",
-          dark: "#2b2b2b",
-          secondary: "#284b63",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#fff23688",
+          light: "#fafafa", // 배경
+          lightgray: "#e6e8eb", // 경계선/구분선
+          gray: "#9ca3af", // 흐린 텍스트(메타)
+          darkgray: "#3f4651", // 본문 텍스트
+          dark: "#111827", // 제목/강조 텍스트
+          secondary: "#2563eb", // 링크/주요 액센트
+          tertiary: "#06b6d4", // 호버/보조 액센트
+          highlight: "rgba(37, 99, 235, 0.08)", // 코드/하이라이트 배경
+          textHighlight: "#2563eb22", // ==형광== 텍스트
         },
         darkMode: {
-          light: "#161618",
-          lightgray: "#393639",
-          gray: "#646464",
-          darkgray: "#d4d4d4",
-          dark: "#ebebec",
-          secondary: "#7b97aa",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#b3aa0288",
+          light: "#0d1117", // 배경
+          lightgray: "#21262d", // 경계선/구분선
+          gray: "#6e7681", // 흐린 텍스트(메타)
+          darkgray: "#c4cdd9", // 본문 텍스트
+          dark: "#f0f6fc", // 제목/강조 텍스트
+          secondary: "#58a6ff", // 링크/주요 액센트
+          tertiary: "#22d3ee", // 호버/보조 액센트
+          highlight: "rgba(56, 139, 253, 0.1)", // 코드/하이라이트 배경
+          textHighlight: "#58a6ff33", // ==형광== 텍스트
         },
       },
     },
