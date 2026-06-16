@@ -1,0 +1,38 @@
+{
+  "id": "stack_vectordb_trend",
+  "input": "[STACK_TASK] 벡터 DB 최신 트렌드를 정리해 vault 에 저장해줘",
+  "expect": {
+    "route": "stack",
+    "must_call": ["recent_research", "vault_save"],
+    "forbidden": ["read_file"]
+  },
+  "judge": {
+    "rubric": "recent_research 출처를 근거로 현재 채택 신호를 정리하고 vault 에 1회 저장했는가",
+    "threshold": 3
+  },
+  "tool_outputs": {
+    "recent_research": "최근 30일: Qdrant·pgvector 언급 증가, hybrid search 논의 활발 (출처: HN, Reddit)",
+    "vault_search": "매칭되는 기존 노트 없음",
+    "vault_save": "저장 완료: vault/IT 트렌드/벡터DB 트렌드.md"
+  },
+  "llm": [
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "tool_use", "name": "recent_research", "input": {"topic": "vector database trends"}, "id": "t1"}
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "tool_use", "name": "vault_save", "input": {"title": "벡터DB 트렌드", "content": "> [!summary] TL;DR\nQdrant·pgvector 부상", "category": "IT 트렌드", "tags": "type/research, tech/vector-db"}, "id": "t2"}
+      ]
+    },
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {"type": "text", "text": "저장 완료: vault/IT 트렌드/벡터DB 트렌드.md"}
+      ]
+    }
+  ]
+}

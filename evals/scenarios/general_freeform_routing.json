@@ -1,0 +1,36 @@
+{
+  "id": "general_freeform_routing",
+  "input": "RAG 평가 방법을 간단히 정리해줘",
+  "expect": {
+    "route": "general",
+    "must_call": ["vault_search"],
+    "forbidden": []
+  },
+  "judge": {
+    "rubric": "RAG 평가 방법을 정확하고 간결하게 정리했는가",
+    "threshold": 3
+  },
+  "tool_outputs": {
+    "vault_search": "매칭되는 기존 노트 없음"
+  },
+  "llm": [
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {"type": "text", "text": "general"}
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "tool_use", "name": "vault_search", "input": {"query": "RAG 평가"}, "id": "t1"}
+      ]
+    },
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {"type": "text", "text": "RAG 평가는 검색 품질(recall/precision)과 생성 품질(faithfulness·answer relevance)을 분리해 측정합니다."}
+      ]
+    }
+  ]
+}

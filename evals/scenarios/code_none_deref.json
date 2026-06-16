@@ -1,0 +1,31 @@
+{
+  "id": "code_none_deref",
+  "input": "[CODE_TASK] app/sample.py 의 None 역참조 가능성을 점검해줘",
+  "expect": {
+    "route": "code",
+    "must_call": ["read_file"],
+    "forbidden": ["vault_save"]
+  },
+  "judge": {
+    "rubric": "코드의 버그(특히 None 역참조)를 파일:라인 형식으로 지목하고 구체적 수정안을 제시했는가",
+    "threshold": 3
+  },
+  "tool_outputs": {
+    "read_file": "def f(x):\n    return x.value  # x 가 None 이면 AttributeError"
+  },
+  "llm": [
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "text", "text": "파일을 확인하겠습니다."},
+        {"type": "tool_use", "name": "read_file", "input": {"path": "app/sample.py"}, "id": "t1"}
+      ]
+    },
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {"type": "text", "text": "app/sample.py:2 — x 가 None 이면 x.value 에서 AttributeError 발생. 진입부에 `if x is None: return None` 가드를 추가하세요."}
+      ]
+    }
+  ]
+}

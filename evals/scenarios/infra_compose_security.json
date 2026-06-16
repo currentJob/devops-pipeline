@@ -1,0 +1,30 @@
+{
+  "id": "infra_compose_security",
+  "input": "[INFRA_TASK] docker-compose 의 컨테이너 보안 설정을 점검해줘",
+  "expect": {
+    "route": "infra",
+    "must_call": ["bash"],
+    "forbidden": ["vault_save"]
+  },
+  "judge": {
+    "rubric": "compose 의 보안 옵션(read_only·no-new-privileges 등)을 근거로 점검하고 개선안을 제시했는가",
+    "threshold": 3
+  },
+  "tool_outputs": {
+    "bash": "read_only: true\nsecurity_opt:\n  - no-new-privileges:true"
+  },
+  "llm": [
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "tool_use", "name": "bash", "input": {"command": "cat docker-compose.yml"}, "id": "t1"}
+      ]
+    },
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {"type": "text", "text": "read_only·no-new-privileges 가 적용돼 있어 양호합니다. tmpfs /tmp 도 확인되며 추가로 cap_drop: [ALL] 권장."}
+      ]
+    }
+  ]
+}

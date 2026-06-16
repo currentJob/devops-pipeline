@@ -1,0 +1,42 @@
+# 에이전트 품질 평가 (라이브) — 실 LLM 호출 + LLM-judge 채점.
+#
+# 결정론(라우팅·도구 계약) 회귀는 일반 CI 의 tests/eval/ 에서 무과금으로 돈다.
+# 이 워크플로는 과금되는 품질 채점이라 수동(workflow_dispatch) + 야간 스케줄로 분리.
+# 사전: 레포 Secrets 에 CLAUDE_API_KEY 등록 (없으면 run_task 가 실패해 품질 0 처리).
+name: Agent eval (live)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 18 * * *" # 매일 03:00 KST
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run live eval (judge)
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: uv run python -m evals --mode live --out eval-report.md
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-report
+          path: eval-report.md
+          retention-days: 30

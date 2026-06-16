@@ -1,0 +1,30 @@
+{
+  "id": "doc_entrypoint",
+  "input": "[DOC_TASK] app/main.py 진입점을 문서화해줘",
+  "expect": {
+    "route": "doc",
+    "must_call": ["read_file"],
+    "forbidden": ["bash"]
+  },
+  "judge": {
+    "rubric": "진입점의 역할·실행 흐름을 코드 확인을 근거로 한국어로 명확히 문서화했는가",
+    "threshold": 3
+  },
+  "tool_outputs": {
+    "read_file": "def main():\n    asyncio.run(run_bot())  # 텔레그램 봇 기동"
+  },
+  "llm": [
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "tool_use", "name": "read_file", "input": {"path": "app/main.py"}, "id": "t1"}
+      ]
+    },
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {"type": "text", "text": "## app/main.py\n진입점. `main()` 이 `asyncio.run(run_bot())` 으로 텔레그램 봇을 기동합니다."}
+      ]
+    }
+  ]
+}
