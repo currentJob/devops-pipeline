@@ -304,7 +304,9 @@ docker compose --profile monitoring up             # + Prometheus + Grafana
 | Prometheus | 9090 | `--profile monitoring` |
 | Grafana | 3000 | `--profile monitoring` |
 
-> Grafana 는 대시보드 3종(개요·시스템·작업로그)과 **Telegram 알림**(워커 실패·큐 적체·호스트 CPU)을 프로비저닝합니다. 알림은 봇의 `TELEGRAM_TOKEN`·`TELEGRAM_CHAT_ID` 를 재사용하며, 미설정 시 대시보드는 정상 동작하고 전송만 비활성됩니다.
+> Grafana 는 대시보드 3종(개요·시스템·작업로그)과 **알림 룰**(워커 실패·큐 적체·호스트 CPU)을 프로비저닝합니다.
+> **Telegram 전송**은 Grafana 11 의 provisioning 이 contact point 의 `chatid` 를 숫자로 잘못 처리하는 이슈가 있어, **UI 에서 1회 설정**합니다:
+> **Alerting → Contact points → Add** → type `Telegram`, 봇 토큰·chat id 입력 → **Notification policies** 의 기본 정책 receiver 를 이 contact point 로 지정. 이후 프로비저닝된 룰이 Telegram 으로 발송됩니다.
 
 ### B. 레지스트리 이미지로 실행 (다른 PC)
 
