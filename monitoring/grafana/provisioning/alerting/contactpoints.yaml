@@ -11,10 +11,10 @@ contactPoints:
       - uid: telegram-bot
         type: telegram
         settings:
-          # 따옴표 필수 — Grafana 가 YAML 파싱 전 raw 치환하므로, 없으면 chatid 가
-          # 숫자로 파싱돼 거부됨(chatid/bottoken 은 string 타입). 토큰의 ':' 도 보호.
+          # chatid/bottoken 은 string 타입. Grafana 가 $VAR 를 치환하면 chatid 가 숫자로
+          # 재해석돼 거부되므로(!!str)로 타입을 강제하고 따옴표로 토큰의 ':' 도 보호한다.
           bottoken: "$TELEGRAM_TOKEN"
-          chatid: "$TELEGRAM_CHAT_ID"
+          chatid: !!str "$TELEGRAM_CHAT_ID"
         disableResolveMessage: false
 
 policies:
