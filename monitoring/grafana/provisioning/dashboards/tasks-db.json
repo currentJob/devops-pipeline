@@ -5,7 +5,17 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "links": [],
+  "links": [
+    {
+      "title": "DevOps Pipeline 대시보드",
+      "type": "dashboards",
+      "tags": ["devops-pipeline"],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link"
+    }
+  ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
@@ -459,8 +469,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi"

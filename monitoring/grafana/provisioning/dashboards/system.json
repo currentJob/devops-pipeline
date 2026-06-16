@@ -5,7 +5,17 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "links": [],
+  "links": [
+    {
+      "title": "DevOps Pipeline 대시보드",
+      "type": "dashboards",
+      "tags": ["devops-pipeline"],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link"
+    }
+  ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
@@ -13,7 +23,31 @@
     "system"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "container",
+        "label": "컨테이너",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_cpu_usage_seconds_total{name=~\".+\"}, name)",
+          "refId": "container"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
   },
   "time": {
     "from": "now-6h",
@@ -73,9 +107,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -88,7 +122,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m]))",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$container\"}[$__rate_interval]))",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -129,9 +163,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -144,7 +178,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (container_memory_usage_bytes{name=~\".+\"})",
+          "expr": "sum by (name) (container_memory_usage_bytes{name=~\"$container\"})",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -185,9 +219,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -200,7 +234,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\".+\"}[5m]))",
+          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$container\"}[$__rate_interval]))",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -241,9 +275,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -256,7 +290,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\".+\"}[5m]))",
+          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$container\"}[$__rate_interval]))",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -335,7 +369,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval])) * 100)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -443,9 +477,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -458,7 +492,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval])) * 100)",
           "legendFormat": "CPU %",
           "refId": "A"
         },
@@ -470,6 +504,117 @@
           "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
           "legendFormat": "Mem %",
           "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "현재 사용량 (스냅샷)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 11,
+      "type": "bargauge",
+      "title": "컨테이너별 메모리 (현재)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (container_memory_usage_bytes{name=~\"$container\"})",
+          "legendFormat": "{{name}}",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "컨테이너별 CPU 코어 (현재)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 3,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$container\"}[$__rate_interval]))",
+          "legendFormat": "{{name}}",
+          "refId": "A",
+          "instant": true
         }
       ]
     }

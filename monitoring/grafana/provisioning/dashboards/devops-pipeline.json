@@ -5,7 +5,17 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "links": [],
+  "links": [
+    {
+      "title": "DevOps Pipeline 대시보드",
+      "type": "dashboards",
+      "tags": ["devops-pipeline"],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true,
+      "icon": "external link"
+    }
+  ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
@@ -328,7 +338,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(worker_task_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(worker_task_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "",
           "refId": "A"
         }
@@ -443,9 +453,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -458,7 +468,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (status) (rate(worker_tasks_total[5m]))",
+          "expr": "sum by (status) (rate(worker_tasks_total[$__rate_interval]))",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -499,9 +509,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -514,7 +524,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(worker_task_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(worker_task_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "p50",
           "refId": "A"
         },
@@ -523,7 +533,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(worker_task_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(worker_task_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "p95",
           "refId": "B"
         }
@@ -564,9 +574,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -747,9 +757,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -762,7 +772,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (route) (rate(worker_route_total[5m]))",
+          "expr": "sum by (route) (rate(worker_route_total[$__rate_interval]))",
           "legendFormat": "{{route}}",
           "refId": "A"
         }
@@ -803,9 +813,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -818,7 +828,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(worker_route_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(worker_route_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "{{route}}",
           "refId": "A"
         }
@@ -969,9 +979,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -984,7 +994,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (status) (rate(rest_responses_total[5m]))",
+          "expr": "sum by (status) (rate(rest_responses_total[$__rate_interval]))",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -1037,9 +1047,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -1102,9 +1112,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": ["lastNotNull", "mean", "max"]
         },
         "tooltip": {
           "mode": "multi",
@@ -1117,7 +1127,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(vllm:prompt_tokens_total[1m])",
+          "expr": "rate(vllm:prompt_tokens_total[$__rate_interval])",
           "legendFormat": "prompt",
           "refId": "A"
         },
@@ -1126,7 +1136,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(vllm:generation_tokens_total[1m])",
+          "expr": "rate(vllm:generation_tokens_total[$__rate_interval])",
           "legendFormat": "generation",
           "refId": "B"
         }

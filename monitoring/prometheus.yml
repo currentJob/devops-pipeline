@@ -12,7 +12,7 @@ scrape_configs:
     metrics_path: /metrics
     scrape_interval: 30s
 
-  # Worker service (향후 /metrics 엔드포인트 추가 시 활성화)
+  # Worker service — /metrics 활성 (app/worker/metrics.py, server.py 가 노출)
   - job_name: worker
     static_configs:
       - targets: ["worker:8766"]
