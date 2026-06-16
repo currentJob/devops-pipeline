@@ -78,6 +78,8 @@ WORKER_VAULT_PUBLISH_URL: str = os.environ.get(
 WORKER_VAULT_PUBLISH_APPLY_URL: str = os.environ.get(
     "WORKER_VAULT_PUBLISH_APPLY_URL", "http://worker:8766/vault/publish/apply"
 )
+# PoC 격리 실행 사이드카 (profile poc). /pocrun 이 호출.
+POCSANDBOX_RUN_URL: str = os.environ.get("POCSANDBOX_RUN_URL", "http://pocsandbox:8770/run")
 WORKER_MAX_CONCURRENT: int = int(os.environ.get("WORKER_MAX_CONCURRENT", "3"))
 WORKER_QUEUE_SIZE: int = int(os.environ.get("WORKER_QUEUE_SIZE", "50"))
 # 새 작업 시 참조할 직전 작업 요약본 개수 (0 = 비활성)

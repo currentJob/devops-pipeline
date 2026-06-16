@@ -229,8 +229,11 @@ START → plan(JSON 분해) → execute(루프) → END
 | `/infra <설명>` | → infra | 인프라/DevOps 설정 점검 |
 | `/stack` | → stack | IT 트렌드 리서치 → Obsidian vault 노트 생성 |
 | `/poc [테마]` | → poc | 호환 서비스 조합 → `prompts/output/poc/<slug>/` 에 end-to-end PoC 스캐폴드 생성 |
+| `/pocrun <slug>` | pocsandbox | 생성된 PoC 를 **격리 샌드박스에서 build+단일 실행**(확인 후, 디버깅 로그) |
 
-> `/poc` 는 워커 샌드박스 안에서 **스캐폴드(파일)만 생성**합니다(빌드·실행 안 함). 생성된 `prompts/output/poc/<slug>/` 의 `HANDOFF.md` 를 따라 **로컬 Claude Code 가 빌드·검증·완성**하는 2단계 흐름입니다.
+> `/poc` 는 워커 샌드박스 안에서 **스캐폴드(파일)만 생성**합니다(빌드·실행 안 함). 생성된 `prompts/output/poc/<slug>/` 의 `HANDOFF.md` 를 따라 **로컬 Claude Code 가 빌드·검증·완성**하거나, `/pocrun` 으로 격리 실행해 디버깅합니다.
+>
+> ⚠️ `/pocrun` 은 **LLM 생성 코드를 실행**합니다(임의 코드 실행). `docker.sock` 을 `pocsandbox` 사이드카에만 격리하고 정적검사+무-egress 실행+자원캡+자동 teardown+인라인 확인으로 제한하지만 **잔여 위험**이 있습니다([security.md](.claude/rules/security.md)). 사용 전 사이드카 기동 필요: `docker compose --profile poc up -d pocsandbox`
 
 ### 빠른 도구
 

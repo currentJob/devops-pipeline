@@ -44,3 +44,10 @@
 - 요청하지 않은 인접 코드 "개선"
 - `data/tasks.db` 를 git에 커밋
 - 테스트 없이 "작동할 것"이라고 단정
+- `docker.sock` 마운트 — **`pocsandbox` 사이드카(profile poc) 단 하나만 예외**.
+  bot/worker 등 다른 서비스엔 절대 마운트 금지(호스트 root 급 권한).
+
+> **예외 — `/pocrun` 격리 실행**: LLM 생성 PoC 코드를 실행하는 유일한 경로.
+> `docker.sock` 을 `pocsandbox` 에만 격리하고, 정적검사(privileged·host bind·sock·
+> network_mode host·cap_add 거부) + 무-egress 실행(`--network none`) + 자원캡 +
+> 타임아웃 + 자동 teardown + 인라인 확인(human-gate)으로 제한한다. 잔여위험은 security.md.

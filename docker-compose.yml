@@ -87,6 +87,36 @@ services:
       retries: 3
       start_period: 10s
 
+  # ── PoC 격리 실행 사이드카 (선택, poc 프로필) ────────────────────────────────
+  # 사용: docker compose --profile poc up -d pocsandbox
+  # /pocrun <slug> 가 호출 → prompts/output/poc/<slug> 를 격리 build+단일실행 후 teardown.
+  # ⚠️ docker.sock 을 이 컨테이너에만 마운트(=호스트 root 급 권한 격리). bot/worker 는 무권한.
+  #    LLM 생성 코드 실행 — 정적검사+무-egress 실행+자원캡으로 제한(잔여위험: security.md).
+  pocsandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.pocsandbox
+    profiles: ["poc"]
+    restart: unless-stopped
+    environment:
+      - POC_ROOT=/poc
+    expose:
+      - "8770"
+    volumes:
+      # docker.sock — 이 사이드카에만. PoC 컨테이너를 호스트 docker 로 띄우고 정리.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # PoC 소스(읽기 전용) — build 컨텍스트 스트리밍용. 시크릿(.env)은 주지 않음.
+      - ./prompts/output/poc:/poc:ro
+    networks:
+      - pipeline-net
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8770/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   # ── Qdrant 벡터 DB ───────────────────────────────────────────────────────────
   # vault 노트 의미 검색용. 내부 네트워크 전용(호스트 미노출). 영속 볼륨 사용.
   qdrant:
