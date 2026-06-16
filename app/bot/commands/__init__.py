@@ -118,6 +118,7 @@ def register_commands(app: Application) -> None:
         cmd_infra,
         cmd_lint,
         cmd_plan,
+        cmd_poc,
         cmd_reindex,
         cmd_stack,
         cmd_task,
@@ -142,6 +143,7 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("audit", cmd_audit))
     app.add_handler(CommandHandler("diff", cmd_diff))
     app.add_handler(CommandHandler("stack", cmd_stack))
+    app.add_handler(CommandHandler("poc", cmd_poc))
     app.add_handler(CommandHandler("reindex", cmd_reindex))
     app.add_handler(CommandHandler("digest", cmd_digest))
     app.add_handler(CommandHandler("commit", cmd_commit))

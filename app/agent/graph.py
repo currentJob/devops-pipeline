@@ -33,6 +33,7 @@ class Route(StrEnum):
     DOC = "doc"
     INFRA = "infra"
     STACK = "stack"
+    POC = "poc"
     GENERAL = "general"
 
 
@@ -42,6 +43,7 @@ _PREFIX_MAP: dict[str, Route] = {
     "[DOC_TASK]": Route.DOC,
     "[INFRA_TASK]": Route.INFRA,
     "[STACK_TASK]": Route.STACK,
+    "[POC_TASK]": Route.POC,
 }
 
 # ── 에이전트별 시스템 프롬프트 (도구 셋은 app.tools.ROUTE_TOOLS 가 관리) ──────────
@@ -90,6 +92,23 @@ _STACK_PROMPT = """당신은 IT 트렌드 리서치 전문 에이전트입니다
 - vault_save 는 **정확히 한 번만** 호출하라. 성공 응답("저장 완료: <경로>")을 받으면
   즉시 그 경로만 응답하고, 추가 도구 호출을 절대 하지 마라 (중복 노트 생성 금지)."""
 
+_POC_PROMPT = """당신은 트렌드 기술을 조합해 end-to-end PoC 프로젝트를 설계·생성하는 에이전트입니다.
+도구: recent_research, vault_search, read_file, write_file
+
+목표: 서로 **호환 가능한** 최신 서비스/도구 2~3개를 골라, 데이터가 흐르는(A→B→출력)
+하나의 작은 end-to-end 프로젝트 스캐폴드를 생성한다. 실행·검증은 하지 않는다(권한 밖).
+
+규칙:
+- write_file 은 반드시 `prompts/output/poc/<slug>/` 하위에만 쓴다(<slug>=짧은 kebab-case).
+- 반복 예산이 작으니 **파일 7개 이내**의 최소 스캐폴드로 한다. 필수:
+  1. `README.md` — 무엇을·왜·아키텍처(텍스트 다이어그램)·실행법(예: docker compose up)
+  2. `docker-compose.yml` — 서비스들을 실제로 연결(포트·네트워크·env)
+  3. 서비스별 **최소 동작 코드 + Dockerfile** (1~2개 서비스)
+  4. `HANDOFF.md` — 로컬에서 이어서 할 일(빌드·실행·검증 단계, 미완성/확장 항목 체크리스트)
+- 추측 금지 — 조합 전 recent_research 로 호환성·채택 신호를 확인하고 README 에 근거를 남긴다.
+- 코드는 간결하지만 **실제로 빌드 가능한 형태**로(가짜 의사코드 금지).
+- 마지막 응답: 생성한 디렉터리 경로 + "로컬 Claude Code 로 빌드·검증하세요" 한 줄."""
+
 _GENERAL_PROMPT = """당신은 DevOps/IaC 자동화 어시스턴트입니다.
 도구: read_file, write_file, bash, recent_research, vault_search, vault_save
 
@@ -106,6 +125,7 @@ _ROUTE_PROMPT: dict[str, str] = {
     Route.DOC: _DOC_PROMPT + _VAULT_NOTE_FORMAT,
     Route.INFRA: _INFRA_PROMPT,
     Route.STACK: _STACK_PROMPT + _VAULT_NOTE_FORMAT,
+    Route.POC: _POC_PROMPT,
     Route.GENERAL: _GENERAL_PROMPT + _VAULT_NOTE_FORMAT,
 }
 
@@ -150,8 +170,9 @@ async def summarize_task(description: str, result: str) -> str:
 
 # ── 게이트웨이: retrieve → route → run_agent ─────────────────────────────────
 
-# 도구형 작업(로컬 파일/명령 분석)은 웹 검색이 노이즈·토큰 낭비라 RAG 생략
-_NO_RAG_PREFIXES = ("[CODE_TASK]", "[INFRA_TASK]")
+# 도구형 작업(로컬 파일/명령 분석, PoC 생성)은 웹 RAG 가 노이즈·토큰 낭비라 생략
+# (poc 는 에이전트가 recent_research 로 자체 조사)
+_NO_RAG_PREFIXES = ("[CODE_TASK]", "[INFRA_TASK]", "[POC_TASK]")
 
 
 async def _retrieve(description: str) -> str:

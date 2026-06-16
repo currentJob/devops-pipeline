@@ -228,6 +228,9 @@ START → plan(JSON 분해) → execute(루프) → END
 | `/doc <설명>` | → doc | 문서 작성 (Obsidian vault 저장) |
 | `/infra <설명>` | → infra | 인프라/DevOps 설정 점검 |
 | `/stack` | → stack | IT 트렌드 리서치 → Obsidian vault 노트 생성 |
+| `/poc [테마]` | → poc | 호환 서비스 조합 → `prompts/output/poc/<slug>/` 에 end-to-end PoC 스캐폴드 생성 |
+
+> `/poc` 는 워커 샌드박스 안에서 **스캐폴드(파일)만 생성**합니다(빌드·실행 안 함). 생성된 `prompts/output/poc/<slug>/` 의 `HANDOFF.md` 를 따라 **로컬 Claude Code 가 빌드·검증·완성**하는 2단계 흐름입니다.
 
 ### 빠른 도구
 

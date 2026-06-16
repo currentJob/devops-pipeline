@@ -158,6 +158,8 @@ ROUTE_TOOLS: dict[str, list[str]] = {
     "doc": ["read_file", "write_file", "recent_research", "vault_search", "vault_save"],
     "infra": ["bash", "read_file", "write_file"],
     "stack": ["recent_research", "vault_search", "vault_save"],
+    # poc: 호환 서비스 조합 PoC 스캐폴드 생성 — bash 없음(무실행), write 는 prompts/output/ 한정
+    "poc": ["recent_research", "vault_search", "read_file", "write_file"],
     "general": _ALL_TOOL_NAMES,
 }
 

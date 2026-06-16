@@ -240,3 +240,28 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
     if not _authorized(update):
         return
     await _dispatch_to_worker(update, _stack_prompt())
+
+
+def _poc_prompt(theme: str) -> str:
+    """/poc 워커 지시문 — 호환 서비스 조합 → prompts/output/poc/ 에 PoC 스캐폴드."""
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    theme_line = (
+        f"테마: {theme}" if theme else "테마 미지정 — recent_research 로 조합 주제를 직접 선정"
+    )
+    return (
+        f"[POC_TASK] 오늘 날짜: {today}. {theme_line}.\n\n"
+        "서로 호환되는 최신 서비스/도구를 조합해 데이터가 흐르는(A→B→출력) 작은 "
+        "end-to-end PoC 프로젝트 스캐폴드를 prompts/output/poc/<slug>/ 에 생성하라.\n"
+        "- 조합 전 recent_research 로 호환성·채택 신호를 확인하고 README 에 근거를 남길 것.\n"
+        "- 파일 7개 이내 최소 스캐폴드: README.md, docker-compose.yml, 서비스별 최소코드+Dockerfile, HANDOFF.md.\n"
+        "- 실제 빌드 가능한 형태로 작성(의사코드 금지). 실행·검증은 하지 마라(권한 밖).\n"
+        "- 마지막 응답은 생성 경로 + '로컬 Claude Code 로 빌드·검증하세요' 한 줄."
+    )
+
+
+async def cmd_poc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/poc [테마]` — 호환 서비스를 조합한 end-to-end PoC 스캐폴드 생성(무실행)."""
+    if not _authorized(update):
+        return
+    theme = " ".join(context.args).strip()
+    await _dispatch_to_worker(update, _poc_prompt(theme))

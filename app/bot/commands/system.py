@@ -54,6 +54,7 @@ async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
         "`/push` 현재 브랜치를 origin 으로 push (확인 후, GITHUB\\_TOKEN 필요)\n\n"
         "*트렌드 리서치 / 지식*\n"
         "`/stack` IT 트렌드 조사 → 중복 회피 → Obsidian vault 노트 생성\n"
+        "`/poc [테마]` 호환 서비스 조합 → prompts/output/poc/ 에 end-to-end PoC 스캐폴드(무실행)\n"
         "`/reindex` vault 노트 재인덱싱 + MOC/Dashboard 갱신\n"
         "`/digest` 최근 vault 노트 요약 주간 브리핑 노트 생성\n"
         "`/notes` vault 노트 발행(✅)/비공개(⬜) 토글 → 발행 적용(export+push)",

@@ -1,0 +1,37 @@
+{
+  "id": "poc_scaffold",
+  "input": "[POC_TASK] 로컬-퍼스트 협업 데모를 호환 서비스로 조합해 스캐폴드를 만들어줘",
+  "expect": {
+    "route": "poc",
+    "must_call": ["write_file"],
+    "forbidden": ["bash", "vault_save"]
+  },
+  "judge": {
+    "rubric": "호환되는 서비스 조합을 근거와 함께 골라 prompts/output/poc/ 하위에 실제 빌드 가능한 end-to-end 스캐폴드(compose+서비스+README+HANDOFF)를 생성했는가",
+    "threshold": 3
+  },
+  "tool_outputs": {
+    "recent_research": "최근 30일: Yjs·Automerge(CRDT) + PartyKit 조합으로 local-first 협업 PoC 활발 (출처: HN)",
+    "write_file": "저장 완료: prompts/output/poc/local-first-collab/README.md (1200 chars)"
+  },
+  "llm": [
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "tool_use", "name": "recent_research", "input": {"topic": "local-first collaboration CRDT stack"}, "id": "t1"}
+      ]
+    },
+    {
+      "stop_reason": "tool_use",
+      "content": [
+        {"type": "tool_use", "name": "write_file", "input": {"path": "prompts/output/poc/local-first-collab/README.md", "content": "# Local-First 협업 PoC\nYjs + PartyKit ..."}, "id": "t2"}
+      ]
+    },
+    {
+      "stop_reason": "end_turn",
+      "content": [
+        {"type": "text", "text": "prompts/output/poc/local-first-collab/ 생성 완료 — 로컬 Claude Code 로 빌드·검증하세요."}
+      ]
+    }
+  ]
+}
