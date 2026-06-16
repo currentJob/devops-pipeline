@@ -36,8 +36,9 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
-      - name: Pytest
-        run: uv run pytest tests/ -v
+      - name: Pytest (+ 커버리지 게이트)
+        # 회귀 방지 하한선 — 현재 ~50%. 봇 통합 테스트가 늘면 상향 가능.
+        run: uv run pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=45
 
       - name: pip-audit
         run: uv run pip-audit --strict
