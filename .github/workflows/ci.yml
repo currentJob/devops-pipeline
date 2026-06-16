@@ -55,7 +55,8 @@ jobs:
       # 명령(부팅·teardown)이 .env 를 찾도록. (없으면 teardown 이 실패해 진짜 원인을 가림)
       - name: Prepare .env (CI dummy)
         # worker-data 명명 볼륨이 appuser 소유라 sqlite/캐시 쓰기 OK — DATA_DIR 우회 불필요.
-        run: printf 'TELEGRAM_TOKEN=ci-dummy\nTELEGRAM_CHAT_ID=0\n' > .env
+        # compose 의 :? 필수 변수(POSTGRES/GRAFANA 비밀번호)도 더미로 채워 파싱 통과
+        run: printf 'TELEGRAM_TOKEN=ci-dummy\nTELEGRAM_CHAT_ID=0\nPOSTGRES_PASSWORD=ci-dummy\nGRAFANA_ADMIN_PASSWORD=ci-dummy\n' > .env
 
       # 1) dev 이미지 안에서 테스트 스위트 실행 — 봇 /test 경로(컨테이너 내 pytest 도구) 검증
       - name: Build dev worker image

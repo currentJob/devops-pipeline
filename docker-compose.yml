@@ -110,7 +110,7 @@ services:
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-tasks}
       - POSTGRES_USER=${POSTGRES_USER:-pipeline}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 를 .env 에 설정하세요}
     # 내부 네트워크 전용 — 호스트 노출 안 함. 로컬 디버깅 필요 시 아래 주석 해제.
     # ports:
     #   - "127.0.0.1:5432:5432"
@@ -202,7 +202,7 @@ services:
     networks:
       - pipeline-net
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD 를 .env 에 설정하세요}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=http://localhost:3000
       # Postgres 데이터소스 프로비저닝(provisioning/datasources/postgres.yml)이 참조.
@@ -211,7 +211,7 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:-tasks}
       - POSTGRES_USER=${POSTGRES_USER:-pipeline}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 를 .env 에 설정하세요}
     depends_on:
       prometheus:
         condition: service_healthy
