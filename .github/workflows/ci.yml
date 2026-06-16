@@ -61,7 +61,7 @@ jobs:
 
       # 1) dev 이미지 안에서 테스트 스위트 실행 — 봇 /test 경로(컨테이너 내 pytest 도구) 검증
       - name: Build dev worker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: runtime-dev
@@ -112,7 +112,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build app image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: runtime
@@ -208,7 +208,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push app image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: runtime
@@ -250,7 +250,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push vLLM image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.vllm
