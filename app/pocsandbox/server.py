@@ -50,6 +50,20 @@ def _trim(text: str) -> str:
     return text if len(text) <= LOG_MAX else text[:LOG_MAX] + "\n...(로그 잘림)"
 
 
+def _parse_json_obj(text: str) -> dict:
+    """앞쪽 JSON 객체만 파싱하고 뒤에 붙은 텍스트(경고 등)는 무시.
+
+    `docker compose config --format json` 은 JSON 을 stdout 에 내지만 경고(env 보간·
+    obsolete attribute 등)는 stderr 로 나온다. _run 이 stdout+stderr 를 합치면 JSON 뒤에
+    경고가 붙어 json.loads 가 'Extra data' 로 실패하므로, raw_decode 로 첫 JSON 값만 읽는다.
+    """
+    start = text.find("{")
+    if start < 0:
+        raise json.JSONDecodeError("JSON 객체를 찾지 못함", text, 0)
+    obj, _ = json.JSONDecoder().raw_decode(text[start:])
+    return obj
+
+
 def _pick_image(images_out: str) -> tuple[str | None, str | None]:
     """`compose images --format json` 출력 → (service, image)."""
     rows: list[dict] = []
@@ -100,7 +114,7 @@ def run_poc(slug: str) -> dict:
         if rc != 0:
             return {"ok": False, "stage": "config", "logs": _trim(out)}
         try:
-            cfg = json.loads(out)
+            cfg = _parse_json_obj(out)
         except json.JSONDecodeError as e:
             return {"ok": False, "stage": "config", "logs": f"compose config 파싱 실패: {e}"}
 
