@@ -330,6 +330,35 @@ async def _handle_vault_publish_apply(_request: web.Request) -> web.Response:
     return _json(result)
 
 
+async def _handle_poc_eval(request: web.Request) -> web.Response:
+    """PoC 평가: 정적지표 + LLM 종합 → EVALUATION.md 저장. 봇 /pocrun 통합 호출.
+
+    body: {slug, build_result: {ok, stage, logs}}  (build_result 는 pocsandbox 실행 결과)
+    """
+    from app.pipeline import poc_eval
+    from app.tools import filesystem
+
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "detail": "invalid json"}, status=400)
+    slug = (body.get("slug") or "").strip()
+    if not poc_eval.valid_slug(slug):
+        return _json({"ok": False, "detail": f"잘못된 slug: {slug!r}"}, status=400)
+
+    base = (filesystem.WORKSPACE / poc_eval.POC_OUTPUT_SUBDIR).resolve()
+    poc_dir = (base / slug).resolve()
+    if not str(poc_dir).startswith(str(base)) or not poc_dir.is_dir():
+        return _json({"ok": False, "detail": f"PoC 없음: {slug}"}, status=404)
+
+    try:
+        result = await poc_eval.evaluate(poc_dir, slug, body.get("build_result") or {})
+    except Exception as e:
+        logger.exception("PoC 평가 실패 slug=%s", slug)
+        return _json({"ok": False, "detail": f"{type(e).__name__}: {e}"}, status=500)
+    return _json({"ok": True, **result})
+
+
 async def _handle_health(_request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
@@ -386,6 +415,7 @@ async def main() -> None:
     app.router.add_post("/vault/publish", _handle_vault_publish)
     app.router.add_post("/vault/publish/apply", _handle_vault_publish_apply)
     app.router.add_post("/digest", _handle_digest)
+    app.router.add_post("/poc/eval", _handle_poc_eval)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
     app.router.add_get("/selfcheck", _handle_selfcheck)

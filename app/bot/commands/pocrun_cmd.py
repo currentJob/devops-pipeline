@@ -15,6 +15,7 @@ from telegram.ext import ContextTypes
 
 from app import config
 from app.bot.commands import _authorized
+from app.pipeline import poc_eval
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ _pending: dict[str, str] = {}
 
 # build(≤300s)+run(≤60s)+teardown 여유
 _RUN_TIMEOUT_S = 600
-_TG_LOG_MAX = 3500
+_EVAL_TIMEOUT_S = 180  # 평가(정적지표 + LLM 종합)
+_BUILD_LOG_MAX = 1500  # 평가 요약과 함께 실으려 build 로그 축약
 
 
 async def cmd_pocrun(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -96,8 +98,39 @@ async def handle_pocrun_callback(update: Update, _context: ContextTypes.DEFAULT_
 
     icon = "✅" if data.get("ok") else "🔴"
     stage = data.get("stage", "?")
-    logs = (data.get("logs") or "")[:_TG_LOG_MAX]
+    logs = (data.get("logs") or "")[:_BUILD_LOG_MAX]
+    build_block = f"{icon} PoC 격리 실행 — `{slug}` (stage: {stage})\n\n```\n{logs}\n```"
     await query.edit_message_text(
-        f"{icon} PoC 격리 실행 — `{slug}` (stage: {stage})\n\n```\n{logs}\n```",
+        f"{build_block}\n\n🧪 평가 중... (정적지표 + LLM 종합)", parse_mode="Markdown"
+    )
+
+    # 통합 평가: build 결과를 worker 로 보내 EVALUATION.md 생성 + 요약 회신.
+    # (bot 은 read-only 라 PoC 파일에 접근 불가 → 평가 본체는 worker 가 수행)
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                config.WORKER_POC_EVAL_URL,
+                json={"slug": slug, "build_result": data},
+                timeout=aiohttp.ClientTimeout(total=_EVAL_TIMEOUT_S),
+            ) as resp,
+        ):
+            eval_data = await resp.json()
+    except aiohttp.ClientError as e:
+        logger.warning("PoC 평가 호출 실패 slug=%s: %s", slug, e)
+        await query.edit_message_text(
+            f"{build_block}\n\n🟡 평가 생략 — worker 연결 실패: {e}", parse_mode="Markdown"
+        )
+        return
+
+    if not eval_data.get("ok"):
+        await query.edit_message_text(
+            f"{build_block}\n\n🟡 평가 실패: {eval_data.get('detail', '?')}",
+            parse_mode="Markdown",
+        )
+        return
+
+    await query.edit_message_text(
+        f"{build_block}\n\n{poc_eval.format_telegram_summary(eval_data)}",
         parse_mode="Markdown",
     )
