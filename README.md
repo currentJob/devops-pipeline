@@ -120,12 +120,17 @@ devops-pipeline/
 │   │   ├── notifier.py         #   Telegram 메시지 전송
 │   │   └── commands/           #   슬래시 커맨드 핸들러
 │   │       ├── system.py       #     /start /help /status /health /model …
-│   │       ├── pipeline_cmd.py #     /run (6단계 파이프라인)
+│   │       ├── pipeline_cmd.py #     /run (의존성 보안 감사 파이프라인)
 │   │       └── worker_cmd.py   #     /task /code /doc /infra /stack …
 │   ├── worker/
-│   │   ├── server.py           # 워커 HTTP 서버 (/run /tasks /health)
+│   │   ├── server.py           # 워커 HTTP 서버 (/run /poc/eval /git/* /vault/* /digest)
 │   │   ├── agent.py            # graph.py 로의 얇은 위임 래퍼
-│   │   └── store.py            # SQLite 작업 이력 (worker-data 명명 볼륨, /app/data)
+│   │   ├── git_ops.py          #   /commit·/push (site/content 한정 스테이징)
+│   │   ├── publish_ops.py      #   /notes 발행 토글·export
+│   │   ├── digest.py           #   주간 브리핑 노트 생성
+│   │   ├── selfcheck.py        #   런타임 의존성 자가점검
+│   │   ├── metrics.py          #   Prometheus 메트릭
+│   │   └── store.py            # 작업 이력 DB (SQLite 기본 / Postgres 선택, DB_BACKEND)
 │   ├── agent/
 │   │   ├── graph.py            # ★ 네이티브 게이트웨이 + 5 에이전트 + Planner
 │   │   ├── runtime.py          # LLM 런타임 (anthropic/openai 직접) + tool-use 루프
@@ -138,7 +143,10 @@ devops-pipeline/
 │   ├── rag/
 │   │   ├── retriever.py        #   Brave 웹 검색 컨텍스트
 │   │   └── vault_index.py      #   Qdrant + fastembed 벡터 인덱스 (의미 검색)
-│   └── pipeline/runner.py      # /run 파이프라인 (수집→분석→실행)
+│   └── pipeline/               # /run·평가 파이프라인
+│       ├── runner.py           #   /run: 의존성 보안 감사 (OSV→AI 분석→교정 리포트)
+│       ├── security_audit.py   #   OSV 스캔·리포트 빌더
+│       └── poc_eval.py         #   /pocrun 통합 PoC 평가 (정적지표+LLM→EVALUATION.md)
 │
 ├── prompts/                    # 6단계 자동화 워크플로 프롬프트 세트
 │   ├── 00_README.md            #   인덱스
@@ -229,9 +237,11 @@ START → plan(JSON 분해) → execute(루프) → END
 | `/infra <설명>` | → infra | 인프라/DevOps 설정 점검 |
 | `/stack` | → stack | IT 트렌드 리서치 → Obsidian vault 노트 생성 |
 | `/poc [테마]` | → poc | 호환 서비스 조합 → `prompts/output/poc/<slug>/` 에 end-to-end PoC 스캐폴드 생성 |
-| `/pocrun <slug>` | pocsandbox | 생성된 PoC 를 **격리 샌드박스에서 build+단일 실행**(확인 후, 디버깅 로그) |
+| `/pocrun <slug>` | pocsandbox + worker | PoC 를 **격리 build+단일 실행** 후 **자동 평가**(정적지표+LLM) → `EVALUATION.md` 저장 + 점수 요약 회신 |
 
 > `/poc` 는 워커 샌드박스 안에서 **스캐폴드(파일)만 생성**합니다(빌드·실행 안 함). 생성된 `prompts/output/poc/<slug>/` 의 `HANDOFF.md` 를 따라 **로컬 Claude Code 가 빌드·검증·완성**하거나, `/pocrun` 으로 격리 실행해 디버깅합니다.
+>
+> 🧪 `/pocrun` 은 격리 실행 직후 **자동 평가**를 수행합니다 — 정적지표(LOC·서비스·의존성 등) 측정 + Claude 종합(무슨 코드·용도·강점·장단점·관점별 0~5점)을 `prompts/output/poc/<slug>/EVALUATION.md` 에 저장하고 점수 요약을 회신합니다. 평가 본체는 PoC 파일에 접근 가능한 **worker** 가 수행하며(bot 은 read-only), build/run 결과를 입력으로 받아 실행가능성 점수에 반영합니다.
 >
 > ⚠️ `/pocrun` 은 **LLM 생성 코드를 실행**합니다(임의 코드 실행). `docker.sock` 을 `pocsandbox` 사이드카에만 격리하고 정적검사+무-egress 실행+자원캡+자동 teardown+인라인 확인으로 제한하지만 **잔여 위험**이 있습니다([security.md](.claude/rules/security.md)). 사용 전 사이드카 기동 필요: `docker compose --profile poc up -d pocsandbox`
 
@@ -239,7 +249,7 @@ START → plan(JSON 분해) → execute(루프) → END
 
 | 명령 | 설명 |
 |------|------|
-| `/run` | 6단계 자동화 파이프라인 실행 (중간 승인 게이트) |
+| `/run` | 의존성 보안 감사 파이프라인 (OSV 스캔 → AI 분석 → 교정 리포트, 승인 게이트) |
 | `/lint` | `ruff check` 실행 후 결과 보고 |
 | `/test` | `pytest` 실행 후 통과/실패 보고 |
 | `/audit` | `pip-audit` CVE 검사 |
@@ -306,9 +316,13 @@ docker compose --profile monitoring up             # + Prometheus + Grafana
 |--------|------|------|
 | bot | 8765 | Telegram 인터페이스 |
 | worker | 8766 | 내부 전용 (expose) |
+| Qdrant | 6333 | 내부 전용, vault 의미 검색 벡터 DB |
+| pocsandbox | 8770 | `--profile poc`, PoC 격리 실행 사이드카 (docker.sock 격리) |
+| Postgres | 5432 | `--profile postgres`, 내부 전용 (DB_BACKEND=postgres 시) |
 | vLLM | 8000 | `--profile vllm`, GPU 필요 |
 | Prometheus | 9090 | `--profile monitoring` |
 | Grafana | 3000 | `--profile monitoring` |
+| cAdvisor / node-exporter | 내부 | `--profile monitoring`, Prometheus 수집 타깃 |
 
 > Grafana 는 대시보드 3종(개요·시스템·작업로그)과 **알림 룰**(워커 실패·큐 적체·호스트 CPU)을 프로비저닝합니다.
 > **Telegram 전송**은 Grafana 11 의 provisioning 이 contact point 의 `chatid` 를 숫자로 잘못 처리하는 이슈가 있어, **UI 에서 1회 설정**합니다:
