@@ -10,7 +10,6 @@ SQLAlchemy Core 가 두 방언(SQL dialect)의 구문 차이를 흡수하므로 
 from __future__ import annotations
 
 import asyncio
-import datetime
 import logging
 import os
 from enum import StrEnum
@@ -32,7 +31,7 @@ from sqlalchemy import (
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from app import config
+from app import clock, config
 
 logger = logging.getLogger(__name__)
 
@@ -190,5 +189,6 @@ async def get_recent(limit: int = 10) -> list[dict]:
 
 
 def _now() -> str:
-    # 초 단위 포함 — 같은 분에 생성된 작업의 정렬(get_recent/메모리)이 비결정적이지 않도록.
-    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    # 작업이력 시각도 KST 로 저장(app.clock). 초 단위 포함 — 같은 분에 생성된 작업의
+    # 정렬(get_recent/메모리)이 비결정적이지 않도록.
+    return clock.now().strftime("%Y-%m-%d %H:%M:%S KST")
