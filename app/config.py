@@ -69,12 +69,8 @@ WORKER_VAULT_REINDEX_URL: str = os.environ.get(
     "WORKER_VAULT_REINDEX_URL", "http://worker:8766/vault/reindex"
 )
 WORKER_DIGEST_URL: str = os.environ.get("WORKER_DIGEST_URL", "http://worker:8766/digest")
-WORKER_POC_EVAL_URL: str = os.environ.get(
-    "WORKER_POC_EVAL_URL", "http://worker:8766/poc/eval"
-)
-WORKER_POC_LIST_URL: str = os.environ.get(
-    "WORKER_POC_LIST_URL", "http://worker:8766/poc/list"
-)
+WORKER_POC_EVAL_URL: str = os.environ.get("WORKER_POC_EVAL_URL", "http://worker:8766/poc/eval")
+WORKER_POC_LIST_URL: str = os.environ.get("WORKER_POC_LIST_URL", "http://worker:8766/poc/list")
 WORKER_VAULT_NOTES_URL: str = os.environ.get(
     "WORKER_VAULT_NOTES_URL", "http://worker:8766/vault/notes"
 )

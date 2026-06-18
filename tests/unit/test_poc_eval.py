@@ -111,7 +111,13 @@ def test_render_report_sections(tmp_path):
         "summary": "전반적으로 양호",
     }
     report = poc_eval.render_report("sample-poc", m, {"ok": True, "stage": "run"}, parsed, True)
-    for section in ["## 종합", "## 관점별 점수", "## 정적 지표", "## 무슨 코드인가", "## 단점·리스크"]:
+    for section in [
+        "## 종합",
+        "## 관점별 점수",
+        "## 정적 지표",
+        "## 무슨 코드인가",
+        "## 단점·리스크",
+    ]:
         assert section in report
     assert "DuckDB 적재 코드" in report and "전반적으로 양호" in report
 
@@ -152,10 +158,12 @@ async def test_evaluate_with_mocked_llm(tmp_path, monkeypatch):
     from app.agent import runtime
 
     async def fake_chat(system, user, route=None):
-        return '{"what":"코드","where":"x","strengths":["s"],"pros":["p"],"cons":["c"],' \
-               '"scores":{"functionality":5,"code_quality":4,"security":3,' \
-               '"maintainability":4,"dependencies":4,"runnability":2,"documentation":5},' \
-               '"summary":"총평"}'
+        return (
+            '{"what":"코드","where":"x","strengths":["s"],"pros":["p"],"cons":["c"],'
+            '"scores":{"functionality":5,"code_quality":4,"security":3,'
+            '"maintainability":4,"dependencies":4,"runnability":2,"documentation":5},'
+            '"summary":"총평"}'
+        )
 
     monkeypatch.setattr(runtime, "chat", fake_chat)
     d = _make_poc(tmp_path)

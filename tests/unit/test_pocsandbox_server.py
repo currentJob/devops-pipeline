@@ -19,7 +19,7 @@ def test_parses_clean_json():
 
 def test_ignores_trailing_stderr_warning():
     # stdout(JSON) + stderr(경고) 가 합쳐진 형태 — 앞 JSON 만 파싱
-    out = '{"services": {"app": {"image": "x"}}}\n' 'level=warning msg="version is obsolete"\n'
+    out = '{"services": {"app": {"image": "x"}}}\nlevel=warning msg="version is obsolete"\n'
     assert _parse_json_obj(out) == {"services": {"app": {"image": "x"}}}
 
 

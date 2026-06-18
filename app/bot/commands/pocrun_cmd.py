@@ -54,7 +54,9 @@ async def cmd_pocs(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     lines = [f"📦 *PoC 목록* ({len(pocs)}개)\n"]
     for p in pocs:
         flags = " ".join(
-            f for f in ("🧪평가" if p["has_eval"] else "", "📋핸드오프" if p["has_handoff"] else "") if f
+            f
+            for f in ("🧪평가" if p["has_eval"] else "", "📋핸드오프" if p["has_handoff"] else "")
+            if f
         )
         lines.append(f"• `{p['slug']}` — 파일 {p['file_count']}개 {flags}".rstrip())
     lines.append("\n실행·평가: `/pocrun <slug>`")

@@ -88,9 +88,7 @@ def list_pocs(base: Path) -> list[dict]:
     for d in sorted(base.iterdir()):
         if not d.is_dir() or not valid_slug(d.name):
             continue
-        file_count = sum(
-            1 for p in d.rglob("*") if p.is_file() and p.name not in _EXCLUDE_NAMES
-        )
+        file_count = sum(1 for p in d.rglob("*") if p.is_file() and p.name not in _EXCLUDE_NAMES)
         out.append(
             {
                 "slug": d.name,
