@@ -1,7 +1,9 @@
-"""네이티브 LLM 런타임 — anthropic(Claude) + openai(vLLM) 직접 사용.
+"""LLM 런타임 — 백엔드 선택 + 단순 완성(chat) + 도구 사용 루프(run_agent).
 
-LangChain/LangGraph 없이 백엔드 선택·단순 완성(chat)·도구 사용 루프(run_agent)를 제공한다.
-도구 스키마/실행기는 app.tools 의 단일 레지스트리(tools_for/execute)를 재사용한다.
+Claude 경로는 Anthropic Agent SDK 의 도구 실행 루프(client.beta.messages.tool_runner +
+app.agent.sdk_tools 의 @beta_async_tool 도구)를 사용한다. vLLM 경로는 openai 호환
+chat.completions 로 도구 루프를 직접 구동한다. 두 경로 모두 실제 도구 실행은 app.tools 의
+단일 레지스트리(execute)를 재사용해 권한 가드/트림을 공유한다.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import time
 import aiohttp
 
 from app import config
+from app.agent import sdk_tools
 from app.tools import execute, tools_for
 
 logger = logging.getLogger(__name__)
@@ -137,33 +140,31 @@ async def chat(system: str, user: str, route: str | None = None) -> str:
 # ── 도구 사용 루프 (ReAct 대체) ───────────────────────────────────────────────
 
 
-async def _run_claude(system: str, user_content: str, task_id: str, schema: list[dict]) -> str:
+async def _run_claude(route: str, system: str, user_content: str, task_id: str) -> str:
+    """Anthropic Agent SDK 도구 실행 루프 — tool_runner 가 도구 호출/결과 누적을 관리한다.
+
+    도구 실행은 sdk_tools 의 @beta_async_tool 이 app.tools.execute 로 위임한다. 본 함수는
+    각 모델 턴을 순회하며 도구 호출 알림(_notify)을 봇으로 스트리밍하고 최종 텍스트를 반환한다.
+    """
     client = _claude_client()
-    messages: list[dict] = [{"role": "user", "content": user_content}]
+    runner = client.beta.messages.tool_runner(
+        model=config.WORKER_MODEL,
+        system=system,
+        max_tokens=config.WORKER_MAX_TOKENS,
+        max_iterations=config.WORKER_MAX_ITERATIONS,
+        tools=sdk_tools.sdk_tools_for(route),
+        messages=[{"role": "user", "content": user_content}],
+    )
     step = 0
-    last_text = ""  # 도구 호출과 함께 나온 직전 텍스트 — 최대 반복 도달 시 폐기하지 않음
-    for _ in range(config.WORKER_MAX_ITERATIONS):
-        resp = await client.messages.create(
-            model=config.WORKER_MODEL,
-            system=system,
-            messages=messages,
-            tools=schema,
-            max_tokens=config.WORKER_MAX_TOKENS,
-        )
-        messages.append({"role": "assistant", "content": [b.model_dump() for b in resp.content]})
-        text = "".join(b.text for b in resp.content if b.type == "text").strip()
-        if resp.stop_reason != "tool_use":
-            return text
+    last_text = ""  # 최대 반복 도달 시 직전 텍스트를 폐기하지 않음
+    async for message in runner:
+        text = "".join(b.text for b in message.content if b.type == "text").strip()
         if text:
             last_text = text
-        results: list[dict] = []
-        for b in resp.content:
+        for b in message.content:
             if b.type == "tool_use":
                 step += 1
                 await _notify(f"🔧 *{b.name}* (id=`{task_id}`, step {step})\n{str(b.input)[:120]}")
-                out = await execute(b.name, dict(b.input))
-                results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
-        messages.append({"role": "user", "content": results})
     return last_text or "(최대 반복 도달 — 부분 결과 없음)"
 
 
@@ -204,8 +205,11 @@ async def _run_vllm(system: str, user_content: str, task_id: str, schema: list[d
 
 
 async def run_agent(route: str, system: str, user_content: str, task_id: str) -> str:
-    """지정 라우트의 도구 셋으로 tool-use 루프 실행. 백엔드 자동 선택."""
-    anthropic_schema, openai_schema = tools_for(route)
+    """지정 라우트의 도구 셋으로 tool-use 루프 실행. 백엔드 자동 선택.
+
+    Claude → Agent SDK tool_runner, vLLM → openai 호환 도구 루프.
+    """
     if await select_backend(route) == "vllm":
+        _, openai_schema = tools_for(route)
         return await _run_vllm(system, user_content, task_id, openai_schema)
-    return await _run_claude(system, user_content, task_id, anthropic_schema)
+    return await _run_claude(route, system, user_content, task_id)

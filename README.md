@@ -1,6 +1,6 @@
 # DevOps 자동화 파이프라인
 
-> **Telegram 봇으로 제어하는 멀티 에이전트 DevOps 자동화 파이프라인** (네이티브 anthropic/openai SDK)
+> **Telegram 봇으로 제어하는 멀티 에이전트 DevOps 자동화 파이프라인** (LangGraph 오케스트레이션 · Anthropic Agent SDK / openai SDK)
 > 자연어 명령 → 게이트웨이가 전문 에이전트로 자동 분기 → 도구 사용(tool-use) 루프로 작업 수행 → 결과를 Telegram 으로 회신.
 
 Claude API(또는 로컬 vLLM)를 백엔드로, **코드 분석 · 문서 작성 · 인프라 점검 · 트렌드 리서치**를 채팅 한 줄로 위임합니다. 컨테이너 빌드 → 레지스트리 → Kubernetes → 모니터링까지 운영 파이프라인을 함께 제공합니다.
@@ -90,10 +90,10 @@ uv run python -m app.worker.server  # 워커 (별도 터미널)
                          ▼
                   [Worker :8766]
                          │
-              ┌──────────┴───────────┐
-              │  Native Gateway       │
-              │  retrieve → router    │
-              └──────────┬───────────┘
+              ┌──────────────────────────┐
+              │  LangGraph Gateway        │
+              │  retrieve → route → exec  │
+              └──────────┬───────────────┘
         ┌─────┬─────┬──────┬─────┬─────┬─────────┐
        code  doc  infra  stack  poc  general   ← 전문 에이전트 (tool-use)
         └─────┴─────┴──────┴─────┴─────┴─────────┘
@@ -132,8 +132,9 @@ devops-pipeline/
 │   │   ├── metrics.py          #   Prometheus 메트릭
 │   │   └── store.py            # 작업 이력 DB (SQLite 기본 / Postgres 선택, DB_BACKEND)
 │   ├── agent/
-│   │   ├── graph.py            # ★ 네이티브 게이트웨이 + 6 에이전트 + Planner
-│   │   ├── runtime.py          # LLM 런타임 (anthropic/openai 직접) + tool-use 루프
+│   │   ├── graph.py            # ★ LangGraph 게이트웨이(retrieve→route→execute) + 6 에이전트 + Planner
+│   │   ├── runtime.py          # LLM 런타임 (Claude=Agent SDK tool_runner / vLLM=openai) + tool-use 루프
+│   │   ├── sdk_tools.py        #   Anthropic Agent SDK 도구 정의 (@beta_async_tool → app.tools.execute)
 │   │   └── outcome.py          # 작업 결과 값 객체 (성공/실패)
 │   ├── tools/                  # 도구 구현 (권한 가드 포함)
 │   │   ├── filesystem.py       #   read_file / write_file (경로 샌드박스)
@@ -230,7 +231,7 @@ START → build ──(성공)──────────────▶ eval
 - **fix** — 빌드 실패 시 `pocfix` 라우트 에이전트가 빌드 로그를 보고 `prompts/output/poc/<slug>/` **한정**으로 소스 수정(보안 설정 변경 금지).
 - **evaluate** — `poc_eval.evaluate` 로 `EVALUATION.md` 생성(정적지표 + LLM 종합 + 자동 수정 이력).
 
-> 제어 흐름만 LangGraph 이고 LLM 호출은 기존 `runtime`(Claude/vLLM 폴백)을 재사용합니다. **보안 정적검사 위반(stage=check)은 자동 수정하지 않고 즉시 종료**해 우회를 차단합니다.
+> 제어 흐름은 게이트웨이와 동일한 LangGraph StateGraph 이고 LLM 호출은 `runtime`(Claude=Agent SDK / vLLM 폴백)을 재사용합니다. **보안 정적검사 위반(stage=check)은 자동 수정하지 않고 즉시 종료**해 우회를 차단합니다.
 
 ---
 

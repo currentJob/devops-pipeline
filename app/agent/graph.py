@@ -1,10 +1,10 @@
-"""멀티 에이전트 게이트웨이 (네이티브 — LangChain/LangGraph 없음).
+"""멀티 에이전트 게이트웨이 — LangGraph StateGraph 오케스트레이션.
 
-평범한 async 오케스트레이션:
-  run_task:      retrieve(RAG) → route(분기) → run_agent(도구 루프)
-  run_plan_task: plan(분해) → 하위 작업마다 run_task 순차 실행
+  run_task:      retrieve(RAG) → route(분기) → execute(도구 루프)  [LangGraph]
+  run_plan_task: plan(분해) → 하위 작업마다 run_task(게이트웨이 그래프) 순차 실행
 
-LLM 호출은 app.agent.runtime (anthropic/openai 직접) 으로 위임한다.
+각 노드의 LLM 호출은 app.agent.runtime 으로 위임한다(Claude=Agent SDK tool_runner,
+vLLM=openai 호환 도구 루프).
 """
 
 from __future__ import annotations
@@ -12,17 +12,20 @@ from __future__ import annotations
 import json
 import logging
 from enum import StrEnum
+from typing import TypedDict
+
+from langgraph.graph import END, StateGraph
 
 from app import clock, config
 from app.agent import runtime
 from app.agent.outcome import Outcome
-from app.agent.runtime import _notify, _route_backend_label  # 재노출 (worker/agent.py 호환)
+from app.agent.runtime import _notify, _route_backend_label  # _notify 는 server.py 가 재사용
 from app.rag.retriever import retrieve_context
 from app.worker import metrics, store
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["Outcome", "_notify", "run_task", "run_plan_task", "summarize_task"]
+__all__ = ["_notify", "run_task", "run_plan_task", "summarize_task"]
 
 # ── 라우트 정의 ───────────────────────────────────────────────────────────────
 
@@ -230,26 +233,77 @@ def _augment(description: str, memory: str, rag_context: str) -> str:
     return "\n\n".join(parts)
 
 
+# ── 게이트웨이 그래프 (LangGraph StateGraph) ─────────────────────────────────
+
+
+class TaskState(TypedDict):
+    task_id: str
+    description: str
+    route: str
+    cleaned: str
+    rag_context: str
+    memory: str
+    text: str
+
+
+async def _retrieve_node(state: TaskState) -> dict:
+    return {"rag_context": await _retrieve(state["description"])}
+
+
+async def _route_node(state: TaskState) -> dict:
+    route, cleaned = await _route(state["task_id"], state["description"])
+    memory = await _recent_memory_block()
+    return {"route": route, "cleaned": cleaned, "memory": memory}
+
+
+async def _execute_node(state: TaskState) -> dict:
+    route = state["route"]
+    augmented = _augment(state["cleaned"], state["memory"], state["rag_context"])
+    # 라우트·백엔드별 사용량/지연 계측 (Grafana 대시보드용)
+    metrics.ROUTE_TOTAL.labels(route=route, backend=_route_backend_label(route)).inc()
+    with metrics.ROUTE_DURATION.labels(route=route).time():
+        text = await runtime.run_agent(
+            route, _dated(_ROUTE_PROMPT[route]), augmented, state["task_id"]
+        )
+    return {"text": text}
+
+
+def _build_gateway_graph():
+    g = StateGraph(TaskState)
+    g.add_node("retrieve", _retrieve_node)
+    g.add_node("route", _route_node)
+    g.add_node("execute", _execute_node)
+    g.set_entry_point("retrieve")
+    g.add_edge("retrieve", "route")
+    g.add_edge("route", "execute")
+    g.add_edge("execute", END)
+    return g.compile()
+
+
+_GATEWAY_GRAPH = _build_gateway_graph()
+
+
 # ── 공개 API ─────────────────────────────────────────────────────────────────
 
 
 async def run_task(task_id: str, description: str) -> Outcome:
-    """게이트웨이를 통해 최적 전문 에이전트로 자동 라우팅."""
+    """게이트웨이 그래프(retrieve→route→execute)로 최적 전문 에이전트에 자동 라우팅."""
     if not config.CLAUDE_API_KEY and not config.VLLM_ENDPOINT:
         return Outcome.failure(
             "LLM 백엔드 미설정 — .env 의 CLAUDE_API_KEY 또는 VLLM_ENDPOINT 추가 필요"
         )
 
-    rag_context = await _retrieve(description)
-    route, cleaned = await _route(task_id, description)
-    memory = await _recent_memory_block()
-    augmented = _augment(cleaned, memory, rag_context)
-
-    # 라우트·백엔드별 사용량/지연 계측 (Grafana 대시보드용)
-    metrics.ROUTE_TOTAL.labels(route=route, backend=_route_backend_label(route)).inc()
-    with metrics.ROUTE_DURATION.labels(route=route).time():
-        text = await runtime.run_agent(route, _dated(_ROUTE_PROMPT[route]), augmented, task_id)
-    return Outcome.success(text)
+    initial: TaskState = {
+        "task_id": task_id,
+        "description": description,
+        "route": "",
+        "cleaned": "",
+        "rag_context": "",
+        "memory": "",
+        "text": "",
+    }
+    final = await _GATEWAY_GRAPH.ainvoke(initial)
+    return Outcome.success(final["text"])
 
 
 async def _plan(task_id: str, description: str) -> list[str]:

@@ -1,4 +1,8 @@
-"""네이티브 LLM 런타임(runtime.run_agent / chat) 단위 테스트 — 모킹, 네트워크 없음."""
+"""LLM 런타임(runtime.run_agent / chat) 단위 테스트 — 모킹, 네트워크 없음.
+
+run_agent 의 Claude 경로는 Anthropic Agent SDK 의 tool_runner 를 사용하므로,
+client.beta.messages.tool_runner 가 돌려주는 비동기 이터러블 runner 를 모사한다.
+"""
 
 from __future__ import annotations
 
@@ -16,35 +20,49 @@ class _Block:
         self.input = input
         self.id = id
 
-    def model_dump(self):
-        d = {"type": self.type}
-        if self.type == "text":
-            d["text"] = self.text
-        else:
-            d.update({"id": self.id, "name": self.name, "input": self.input})
-        return d
 
-
-class _Resp:
-    def __init__(self, stop_reason, content):
-        self.stop_reason = stop_reason
+class _Msg:
+    def __init__(self, content):
         self.content = content
 
 
+class _FakeRunner:
+    """tool_runner 모사 — 각 모델 턴을 yield 하고 tool_use 를 executor 로 실행."""
+
+    def __init__(self, messages, executor):
+        self._messages = messages
+        self._executor = executor
+
+    async def __aiter__(self):
+        for m in self._messages:
+            yield m
+            for b in m.content:
+                if b.type == "tool_use":
+                    await self._executor(b.name, b.input)
+
+
+class _FakeBetaMessages:
+    def __init__(self, runner):
+        self._runner = runner
+
+    def tool_runner(self, **_kw):
+        return self._runner
+
+
 class _FakeMessages:
+    """chat() 용 단일 완성 모사."""
+
     def __init__(self, responses):
         self._responses = list(responses)
-        self.calls = 0
 
     async def create(self, **_kw):
-        self.calls += 1
-        # 마지막 1개는 소진하지 않고 계속 반환 (max-iter 테스트용)
         return self._responses.pop(0) if len(self._responses) > 1 else self._responses[0]
 
 
 class _FakeClient:
-    def __init__(self, responses):
-        self.messages = _FakeMessages(responses)
+    def __init__(self, runner=None, create_responses=None):
+        self.beta = type("_B", (), {"messages": _FakeBetaMessages(runner)})()
+        self.messages = _FakeMessages(create_responses or [])
 
 
 @pytest.fixture(autouse=True)
@@ -60,8 +78,8 @@ def _claude_backend(monkeypatch):
     monkeypatch.setattr(runtime, "_notify", _noop)
 
 
-def _patch_client(monkeypatch, responses):
-    client = _FakeClient(responses)
+def _patch_runner(monkeypatch, messages, executor):
+    client = _FakeClient(runner=_FakeRunner(messages, executor))
     monkeypatch.setattr(runtime, "_claude_client", lambda: client)
     return client
 
@@ -70,17 +88,17 @@ def _patch_client(monkeypatch, responses):
 async def test_run_agent_tool_then_finish(monkeypatch):
     calls = []
 
-    async def fake_execute(name, args):
+    async def executor(name, args):
         calls.append((name, args))
         return "FILE CONTENTS"
 
-    monkeypatch.setattr(runtime, "execute", fake_execute)
-    _patch_client(
+    _patch_runner(
         monkeypatch,
         [
-            _Resp("tool_use", [_Block("tool_use", name="read_file", input={"path": "x"}, id="t1")]),
-            _Resp("end_turn", [_Block("text", text="분석 완료")]),
+            _Msg([_Block("tool_use", name="read_file", input={"path": "x"}, id="t1")]),
+            _Msg([_Block("text", text="분석 완료")]),
         ],
+        executor,
     )
     result = await runtime.run_agent("code", "sys", "user", "tid")
     assert result == "분석 완료"
@@ -89,44 +107,45 @@ async def test_run_agent_tool_then_finish(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_agent_no_tools(monkeypatch):
-    monkeypatch.setattr(runtime, "execute", None)  # 호출되면 안 됨
-    _patch_client(monkeypatch, [_Resp("end_turn", [_Block("text", text="바로 답")])])
+    async def executor(_name, _args):
+        raise AssertionError("도구가 호출되면 안 됨")
+
+    _patch_runner(monkeypatch, [_Msg([_Block("text", text="바로 답")])], executor)
     assert await runtime.run_agent("general", "sys", "user", "tid") == "바로 답"
 
 
 @pytest.mark.asyncio
-async def test_run_agent_max_iter_guard(monkeypatch):
-    async def fake_execute(_name, _args):
+async def test_run_agent_max_iter_returns_fallback(monkeypatch):
+    # runner 가 최종 텍스트 없이 종료(최대 반복 도달 모사) → 폴백 문구 반환
+    async def executor(_name, _args):
         return "loop"
 
-    monkeypatch.setattr(runtime, "execute", fake_execute)
-    client = _patch_client(
+    _patch_runner(
         monkeypatch,
-        [_Resp("tool_use", [_Block("tool_use", name="bash", input={"command": "ls"}, id="t")])],
+        [_Msg([_Block("tool_use", name="bash", input={"command": "ls"}, id="t")])],
+        executor,
     )
     result = await runtime.run_agent("code", "sys", "user", "tid")
     assert "최대 반복" in result
-    assert client.messages.calls == config.WORKER_MAX_ITERATIONS
 
 
 @pytest.mark.asyncio
-async def test_run_agent_max_iter_returns_partial_text(monkeypatch):
-    # 최대 반복 도달 시, 도구 호출과 함께 나온 직전 텍스트를 폐기하지 않고 반환
-    async def fake_execute(_name, _args):
+async def test_run_agent_returns_partial_text(monkeypatch):
+    # 최종 end_turn 없이 종료해도, 도구 호출과 함께 나온 직전 텍스트를 폐기하지 않고 반환
+    async def executor(_name, _args):
         return "loop"
 
-    monkeypatch.setattr(runtime, "execute", fake_execute)
-    _patch_client(
+    _patch_runner(
         monkeypatch,
         [
-            _Resp(
-                "tool_use",
+            _Msg(
                 [
                     _Block("text", text="중간 분석 결과"),
                     _Block("tool_use", name="bash", input={"command": "ls"}, id="t"),
-                ],
+                ]
             )
         ],
+        executor,
     )
     result = await runtime.run_agent("code", "sys", "user", "tid")
     assert result == "중간 분석 결과"
@@ -134,5 +153,6 @@ async def test_run_agent_max_iter_returns_partial_text(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_chat_returns_text(monkeypatch):
-    _patch_client(monkeypatch, [_Resp("end_turn", [_Block("text", text="요약문")])])
+    client = _FakeClient(create_responses=[_Msg([_Block("text", text="요약문")])])
+    monkeypatch.setattr(runtime, "_claude_client", lambda: client)
     assert await runtime.chat("system", "user") == "요약문"

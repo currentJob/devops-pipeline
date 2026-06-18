@@ -3,8 +3,8 @@
 patch 대상(전부 런타임 한정, app/ 소스 불변):
   config.CLAUDE_API_KEY      run_task 의 백엔드 가드 통과용 더미
   runtime.select_backend     'claude' 고정(비교 가능성)
-  runtime._claude_client     ReplayClient(cassette)
-  runtime.execute            ToolRecorder(부작용 차단 + 호출 기록)
+  runtime._claude_client     ReplayClient(cassette) — chat + Agent SDK tool_runner 공유
+  tools.execute              ToolRecorder(부작용 차단 + 호출 기록) — 도구 단일 실행 진입점
   runtime._notify/graph._notify  no-op
   graph._retrieve/_recent_memory_block  '' (RAG·DB 차단)
   graph._route               원본 호출 + 선택된 route 캡처
@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 from unittest.mock import patch
 
-from app import config
+from app import config, tools
 from app.agent import graph, runtime
 from evals.llm_io import ReplayClient
 from evals.stubs import ToolRecorder, empty_str, noop_notify
@@ -47,7 +47,7 @@ async def run_scenario(scenario: dict, mode: str = "replay") -> AgentTrace:
 
     with contextlib.ExitStack() as es:
         e = es.enter_context
-        e(patch.object(runtime, "execute", recorder.execute))
+        e(patch.object(tools, "execute", recorder.execute))
         e(patch.object(runtime, "_notify", noop_notify))
         e(patch.object(graph, "_notify", noop_notify))
         e(patch.object(graph, "_retrieve", empty_str))
