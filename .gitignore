@@ -36,3 +36,5 @@ data/.fastembed/
 # vault (개인 Obsidian 노트) — 로컬 전용, git 미추적 (.env 와 동일 취급)
 # 워커가 런타임에 생성/인덱싱. 디스크엔 존재하되 git/origin 에는 올리지 않음.
 vault/
+
+logs/
