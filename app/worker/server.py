@@ -27,9 +27,9 @@ import aiohttp
 from aiohttp import web
 
 from app import config
+from app.agent.graph import _notify, run_plan_task, run_task, summarize_task
 from app.agent.outcome import Outcome
 from app.worker import git_ops, metrics, selfcheck, store
-from app.worker.agent import _notify, _run_with_tools, plan_and_run, summarize_task
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ async def _process_task(job: _Job) -> None:
         if description.startswith("[PLAN_TASK]"):
             cleaned = description[len("[PLAN_TASK]") :].strip()
             try:
-                outcome = await plan_and_run(task_id, cleaned)
+                outcome = await run_plan_task(task_id, cleaned)
             except Exception as e:
                 logger.exception("플래너 오류 task_id=%s", task_id)
                 outcome = Outcome.failure(f"플래너 오류: {type(e).__name__}: {e}")
@@ -110,7 +110,7 @@ async def _process_task(job: _Job) -> None:
                     "저장 완료 후 파일 경로를 응답에 포함."
                 )
             try:
-                outcome = await _run_with_tools(task_id, description)
+                outcome = await run_task(task_id, description)
             except Exception as e:
                 logger.exception("작업 처리 중 예외 task_id=%s", task_id)
                 outcome = Outcome.failure(f"내부 오류: {type(e).__name__}: {e}")
@@ -424,7 +424,6 @@ async def _handle_digest(_request: web.Request) -> web.Response:
 
 async def _digest_loop() -> None:
     """DIGEST_ENABLED 시 주기적으로 다이제스트를 생성하고 봇에 알림 (어떤 실패에도 루프 지속)."""
-    from app.agent import runtime
     from app.worker import digest
 
     interval = max(1, config.DIGEST_INTERVAL_DAYS) * 86400
@@ -432,7 +431,7 @@ async def _digest_loop() -> None:
         await asyncio.sleep(interval)
         try:
             result = await digest.generate_digest()
-            await runtime._notify(f"🗞️ 주간 브리핑 생성: {result}")
+            await _notify(f"🗞️ 주간 브리핑 생성: {result}")
         except Exception as e:  # noqa: BLE001 — 스케줄 루프는 중단되면 안 됨
             logger.warning("다이제스트 생성 실패: %s", e)
 

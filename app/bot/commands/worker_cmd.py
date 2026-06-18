@@ -29,7 +29,7 @@ async def cmd_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     description = " ".join(context.args).strip()
     if not description:
         await update.message.reply_text(
-            "사용법: `/code <분석 요청>`\n예: `/code app/worker/agent.py 보안 취약점 점검`",
+            "사용법: `/code <분석 요청>`\n예: `/code app/worker/server.py 보안 취약점 점검`",
             parse_mode="Markdown",
         )
         return
@@ -43,7 +43,7 @@ async def cmd_doc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     description = " ".join(context.args).strip()
     if not description:
         await update.message.reply_text(
-            "사용법: `/doc <문서화 요청>`\n예: `/doc worker/agent.py README 작성`",
+            "사용법: `/doc <문서화 요청>`\n예: `/doc worker/server.py README 작성`",
             parse_mode="Markdown",
         )
         return
