@@ -359,6 +359,16 @@ async def _handle_poc_eval(request: web.Request) -> web.Response:
     return _json({"ok": True, **result})
 
 
+async def _handle_poc_list(_request: web.Request) -> web.Response:
+    """`/poc` 가 생성한 PoC 목록(slug·파일 수·구성/평가 유무). 봇 /pocs."""
+    from app.pipeline import poc_eval
+    from app.tools import filesystem
+
+    base = filesystem.WORKSPACE / poc_eval.POC_OUTPUT_SUBDIR
+    pocs = await asyncio.to_thread(poc_eval.list_pocs, base)
+    return _json({"ok": True, "pocs": pocs})
+
+
 async def _handle_health(_request: web.Request) -> web.Response:
     return web.Response(status=200, text="ok")
 
@@ -416,6 +426,7 @@ async def main() -> None:
     app.router.add_post("/vault/publish/apply", _handle_vault_publish_apply)
     app.router.add_post("/digest", _handle_digest)
     app.router.add_post("/poc/eval", _handle_poc_eval)
+    app.router.add_get("/poc/list", _handle_poc_list)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)
     app.router.add_get("/selfcheck", _handle_selfcheck)

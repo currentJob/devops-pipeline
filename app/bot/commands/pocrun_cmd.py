@@ -28,6 +28,39 @@ _EVAL_TIMEOUT_S = 180  # 평가(정적지표 + LLM 종합)
 _BUILD_LOG_MAX = 1500  # 평가 요약과 함께 실으려 build 로그 축약
 
 
+async def cmd_pocs(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/pocs` — /poc 가 생성한 PoC 목록 조회 (worker /poc/list)."""
+    if not _authorized(update):
+        return
+    try:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                config.WORKER_POC_LIST_URL, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp,
+        ):
+            data = await resp.json()
+    except aiohttp.ClientError as e:
+        await update.message.reply_text(f"🔴 워커 연결 실패: {e}")
+        return
+
+    pocs = data.get("pocs") or []
+    if not pocs:
+        await update.message.reply_text(
+            "생성된 PoC 가 없습니다. `/poc [테마]` 로 만들 수 있어요.", parse_mode="Markdown"
+        )
+        return
+
+    lines = [f"📦 *PoC 목록* ({len(pocs)}개)\n"]
+    for p in pocs:
+        flags = " ".join(
+            f for f in ("🧪평가" if p["has_eval"] else "", "📋핸드오프" if p["has_handoff"] else "") if f
+        )
+        lines.append(f"• `{p['slug']}` — 파일 {p['file_count']}개 {flags}".rstrip())
+    lines.append("\n실행·평가: `/pocrun <slug>`")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 async def cmd_pocrun(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return

@@ -79,6 +79,29 @@ def valid_slug(slug: str) -> bool:
     return bool(_SLUG_RE.fullmatch(slug or ""))
 
 
+def list_pocs(base: Path) -> list[dict]:
+    """`/poc` 가 생성한 PoC 목록 — slug·파일 수·구성/평가 유무 (가벼운 stat만)."""
+    if not base.is_dir():
+        return []
+    out: list[dict] = []
+    for d in sorted(base.iterdir()):
+        if not d.is_dir() or not valid_slug(d.name):
+            continue
+        file_count = sum(
+            1 for p in d.rglob("*") if p.is_file() and p.name not in _EXCLUDE_NAMES
+        )
+        out.append(
+            {
+                "slug": d.name,
+                "file_count": file_count,
+                "has_compose": (d / "docker-compose.yml").is_file(),
+                "has_handoff": (d / "HANDOFF.md").is_file(),
+                "has_eval": (d / REPORT_NAME).is_file(),
+            }
+        )
+    return out
+
+
 # ── 정적 지표 ────────────────────────────────────────────────────────────────
 
 

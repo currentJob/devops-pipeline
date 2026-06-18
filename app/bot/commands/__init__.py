@@ -100,7 +100,7 @@ def register_commands(app: Application) -> None:
     )
     from app.bot.commands.notes_cmd import cmd_notes, handle_notes_callback
     from app.bot.commands.pipeline_cmd import cmd_run
-    from app.bot.commands.pocrun_cmd import cmd_pocrun, handle_pocrun_callback
+    from app.bot.commands.pocrun_cmd import cmd_pocrun, cmd_pocs, handle_pocrun_callback
     from app.bot.commands.system import (
         cmd_health,
         cmd_help,
@@ -145,6 +145,7 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("diff", cmd_diff))
     app.add_handler(CommandHandler("stack", cmd_stack))
     app.add_handler(CommandHandler("poc", cmd_poc))
+    app.add_handler(CommandHandler("pocs", cmd_pocs))
     app.add_handler(CommandHandler("pocrun", cmd_pocrun))
     app.add_handler(
         CallbackQueryHandler(handle_pocrun_callback, pattern=r"^pocrun_(apply|cancel):")

@@ -33,6 +33,19 @@ def _make_poc(root: Path) -> Path:
     return d
 
 
+def test_list_pocs(tmp_path):
+    assert poc_eval.list_pocs(tmp_path / "missing") == []  # 없으면 빈 목록
+    _make_poc(tmp_path)
+    (tmp_path / "sample-poc" / poc_eval.REPORT_NAME).write_text("# 평가\n", encoding="utf-8")
+    (tmp_path / "not-a-slug!").mkdir()  # 잘못된 slug 디렉토리는 제외
+    rows = poc_eval.list_pocs(tmp_path)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["slug"] == "sample-poc"
+    assert row["has_eval"] and row["has_handoff"] and row["has_compose"]
+    assert row["file_count"] == poc_eval.collect_metrics(tmp_path / "sample-poc")["file_count"]
+
+
 def test_valid_slug():
     assert poc_eval.valid_slug("duckdb-mcp-pipeline")
     assert not poc_eval.valid_slug("../etc")

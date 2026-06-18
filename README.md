@@ -237,6 +237,7 @@ START → plan(JSON 분해) → execute(루프) → END
 | `/infra <설명>` | → infra | 인프라/DevOps 설정 점검 |
 | `/stack` | → stack | IT 트렌드 리서치 → Obsidian vault 노트 생성 |
 | `/poc [테마]` | → poc | 호환 서비스 조합 → `prompts/output/poc/<slug>/` 에 end-to-end PoC 스캐폴드 생성 |
+| `/pocs` | worker | 생성된 PoC 목록 조회 (파일 수·평가/핸드오프 유무) |
 | `/pocrun <slug>` | pocsandbox + worker | PoC 를 **격리 build+단일 실행** 후 **자동 평가**(정적지표+LLM) → `EVALUATION.md` 저장 + 점수 요약 회신 |
 
 > `/poc` 는 워커 샌드박스 안에서 **스캐폴드(파일)만 생성**합니다(빌드·실행 안 함). 생성된 `prompts/output/poc/<slug>/` 의 `HANDOFF.md` 를 따라 **로컬 Claude Code 가 빌드·검증·완성**하거나, `/pocrun` 으로 격리 실행해 디버깅합니다.
