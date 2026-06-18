@@ -40,11 +40,11 @@ Claude Code + Rules + Subagents
 |------|------|------|
 | **Bot** | Telegram 인터페이스 (`:8765`) | 명령 수신·인가, 워커에 작업 위임, 결과 알림 |
 | **Worker** | 게이트웨이 (`:8766`) | 작업 라우팅, 전문 에이전트 도구 사용(tool-use) 루프 실행 |
-| **Gateway** | 라우터 + 5개 전문 에이전트 | 작업 유형 판별 → code/doc/infra/stack/general 분기 |
+| **Gateway** | 라우터 + 6개 전문 에이전트 | 작업 유형 판별 → code/doc/infra/stack/poc/general 분기 |
 | **Tools** | 에이전트의 손발 | `read_file` · `write_file` · `bash` · `recent_research` · `vault_*` |
 | **Qdrant** | 벡터 DB (`:6333`, 내부) | vault 노트 임베딩 저장 → `vault_search` 의미 검색 |
 
-여기에 **Planner**(복합 작업 분해), **RAG**(Brave 웹 검색 컨텍스트 주입)가 더해집니다.
+여기에 **Planner**(복합 작업 분해), **PoC Autopilot**(LangGraph 빌드→수정→평가 루프), **RAG**(Brave 웹 검색 컨텍스트 주입)가 더해집니다.
 
 ---
 
@@ -94,9 +94,9 @@ uv run python -m app.worker.server  # 워커 (별도 터미널)
               │  Native Gateway       │
               │  retrieve → router    │
               └──────────┬───────────┘
-            ┌─────┬──────┼──────┬─────────┐
-          code   doc   infra  stack   general   ← 전문 에이전트 (tool-use)
-            └─────┴──────┼──────┴─────────┘
+        ┌─────┬─────┬──────┬─────┬─────┬─────────┐
+       code  doc  infra  stack  poc  general   ← 전문 에이전트 (tool-use)
+        └─────┴─────┴──────┴─────┴─────┴─────────┘
                          │  도구: read_file/write_file/bash/recent_research/vault_*
                          ▼  결과 전송 (HTTP POST /worker-result)
                   [Bot] ──응답──▶ [Telegram]
@@ -123,7 +123,7 @@ devops-pipeline/
 │   │       ├── pipeline_cmd.py #     /run (의존성 보안 감사 파이프라인)
 │   │       └── worker_cmd.py   #     /task /code /doc /infra /stack …
 │   ├── worker/
-│   │   ├── server.py           # 워커 HTTP 서버 (/run /poc/eval /git/* /vault/* /digest)
+│   │   ├── server.py           # 워커 HTTP 서버 (/run /poc/autopilot /poc/eval /git/* /vault/* /digest)
 │   │   ├── agent.py            # graph.py 로의 얇은 위임 래퍼
 │   │   ├── git_ops.py          #   /commit·/push (site/content 한정 스테이징)
 │   │   ├── publish_ops.py      #   /notes 발행 토글·export
@@ -132,7 +132,7 @@ devops-pipeline/
 │   │   ├── metrics.py          #   Prometheus 메트릭
 │   │   └── store.py            # 작업 이력 DB (SQLite 기본 / Postgres 선택, DB_BACKEND)
 │   ├── agent/
-│   │   ├── graph.py            # ★ 네이티브 게이트웨이 + 5 에이전트 + Planner
+│   │   ├── graph.py            # ★ 네이티브 게이트웨이 + 6 에이전트 + Planner
 │   │   ├── runtime.py          # LLM 런타임 (anthropic/openai 직접) + tool-use 루프
 │   │   └── outcome.py          # 작업 결과 값 객체 (성공/실패)
 │   ├── tools/                  # 도구 구현 (권한 가드 포함)
@@ -143,10 +143,11 @@ devops-pipeline/
 │   ├── rag/
 │   │   ├── retriever.py        #   Brave 웹 검색 컨텍스트
 │   │   └── vault_index.py      #   Qdrant + fastembed 벡터 인덱스 (의미 검색)
-│   └── pipeline/               # /run·평가 파이프라인
+│   └── pipeline/               # /run·PoC 파이프라인
 │       ├── runner.py           #   /run: 의존성 보안 감사 (OSV→AI 분석→교정 리포트)
 │       ├── security_audit.py   #   OSV 스캔·리포트 빌더
-│       └── poc_eval.py         #   /pocrun 통합 PoC 평가 (정적지표+LLM→EVALUATION.md)
+│       ├── poc_pipeline.py     #   /pocrun autopilot (LangGraph 빌드→수정→평가 루프)
+│       └── poc_eval.py         #   PoC 평가 (정적지표+LLM→EVALUATION.md)
 │
 ├── prompts/                    # 6단계 자동화 워크플로 프롬프트 세트
 │   ├── 00_README.md            #   인덱스
@@ -184,6 +185,7 @@ START → retrieve(Brave 검색) → router → ┬ code
                                         ├ doc
                                         ├ infra
                                         ├ stack
+                                        ├ poc
                                         └ general → END
 ```
 
@@ -200,7 +202,10 @@ START → retrieve(Brave 검색) → router → ┬ code
 | `doc` | README·API 문서·온보딩 가이드 작성 | `read_file` `write_file` `recent_research` `vault_*` |
 | `infra` | Docker·CI/CD·인프라 설정 분석 | `bash` `read_file` `write_file` |
 | `stack` | IT 트렌드 리서치 → Obsidian vault 저장 (중복 회피) | `recent_research` `vault_search` `vault_save` |
+| `poc` | 호환 서비스 조합 → end-to-end PoC 스캐폴드 생성 | `recent_research` `vault_search` `read_file` `write_file` |
 | `general` | 위 외 일반 작업 | 전체 도구 |
+
+> 내부 라우트 `pocfix`(read_file·write_file 한정)는 PoC autopilot 의 빌드 실패 수정 단계에서만 사용됩니다(아래 [PoC 자동 파이프라인](#poc-자동-파이프라인-autopilot)).
 
 ### Planner
 
@@ -209,6 +214,23 @@ START → retrieve(Brave 검색) → router → ┬ code
 ```
 START → plan(JSON 분해) → execute(루프) → END
 ```
+
+### PoC 자동 파이프라인 (autopilot)
+
+`/pocrun <slug>` 은 [`app/pipeline/poc_pipeline.py`](app/pipeline/poc_pipeline.py) 의 **LangGraph StateGraph** 로, 생성된 PoC 를 격리 환경에서 자동으로 빌드·수정·평가합니다. 확인 1회가 최대 `POC_AUTOPILOT_MAX_ITERATIONS` 회 격리 실행을 인가합니다.
+
+```
+START → build ──(성공)──────────────▶ evaluate → END
+          │  └(빌드/실행 실패·여유)──▶ fix ─▶ (build 로 복귀)
+          │  └(보안 정적검사 위반)─────▶ evaluate(미통과) → END
+          └(반복 소진)────────────────▶ evaluate(미통과) → END
+```
+
+- **build** — `pocsandbox` 사이드카(`/run`)가 정적검사 + 무-egress(`--network none`) + 자원캡으로 격리 빌드/실행.
+- **fix** — 빌드 실패 시 `pocfix` 라우트 에이전트가 빌드 로그를 보고 `prompts/output/poc/<slug>/` **한정**으로 소스 수정(보안 설정 변경 금지).
+- **evaluate** — `poc_eval.evaluate` 로 `EVALUATION.md` 생성(정적지표 + LLM 종합 + 자동 수정 이력).
+
+> 제어 흐름만 LangGraph 이고 LLM 호출은 기존 `runtime`(Claude/vLLM 폴백)을 재사용합니다. **보안 정적검사 위반(stage=check)은 자동 수정하지 않고 즉시 종료**해 우회를 차단합니다.
 
 ---
 
@@ -236,24 +258,22 @@ START → plan(JSON 분해) → execute(루프) → END
 | `/doc <설명>` | → doc | 문서 작성 (Obsidian vault 저장) |
 | `/infra <설명>` | → infra | 인프라/DevOps 설정 점검 |
 | `/stack` | → stack | IT 트렌드 리서치 → Obsidian vault 노트 생성 |
-| `/poc [테마]` | → poc | 호환 서비스 조합 → `prompts/output/poc/<slug>/` 에 end-to-end PoC 스캐폴드 생성 |
+| `/poc [테마]` | → poc | 호환 서비스 조합 → `prompts/output/poc/<slug>/` 에 PoC 스캐폴드 생성 (결과에 **자동 빌드·평가 버튼** 첨부) |
 | `/pocs` | worker | 생성된 PoC 목록 조회 (파일 수·평가/핸드오프 유무) |
-| `/pocrun <slug>` | pocsandbox + worker | PoC 를 **격리 build+단일 실행** 후 **자동 평가**(정적지표+LLM) → `EVALUATION.md` 저장 + 점수 요약 회신 |
+| `/pocrun <slug>` | autopilot | PoC 를 **격리 빌드 → 실패 시 자동 수정 → 재빌드 반복 → 평가**(LangGraph). 확인 1회로 최대 N회 실행 → `EVALUATION.md` |
 
-> `/poc` 는 워커 샌드박스 안에서 **스캐폴드(파일)만 생성**합니다(빌드·실행 안 함). 생성된 `prompts/output/poc/<slug>/` 의 `HANDOFF.md` 를 따라 **로컬 Claude Code 가 빌드·검증·완성**하거나, `/pocrun` 으로 격리 실행해 디버깅합니다.
+> `/poc` 는 워커 샌드박스 안에서 **스캐폴드(파일)만 생성**합니다(빌드·실행 안 함). 생성 직후 봇이 **"▶️ 자동 빌드·평가" 버튼**을 띄우며(또는 `/pocrun <slug>`), 탭하면 autopilot 파이프라인이 시작됩니다.
 >
-> 🧪 `/pocrun` 은 격리 실행 직후 **자동 평가**를 수행합니다 — 정적지표(LOC·서비스·의존성 등) 측정 + Claude 종합(무슨 코드·용도·강점·장단점·관점별 0~5점)을 `prompts/output/poc/<slug>/EVALUATION.md` 에 저장하고 점수 요약을 회신합니다. 평가 본체는 PoC 파일에 접근 가능한 **worker** 가 수행하며(bot 은 read-only), build/run 결과를 입력으로 받아 실행가능성 점수에 반영합니다.
+> 🧪 `/pocrun` (autopilot)은 **격리 빌드 → 실패 시 자동 수정 → 재빌드 반복 → 평가**를 한 흐름으로 수행합니다. 빌드 실패 시 worker 가 빌드 로그를 보고 `prompts/output/poc/<slug>/` 소스를 수정한 뒤 재빌드하며(최대 `POC_AUTOPILOT_MAX_ITERATIONS` 회), 성공/소진 시 `EVALUATION.md`(정적지표 + LLM 종합 + 자동 수정 이력)를 생성합니다. 평가 본체는 PoC 파일에 접근 가능한 **worker** 가 수행합니다(bot 은 read-only).
 >
-> ⚠️ `/pocrun` 은 **LLM 생성 코드를 실행**합니다(임의 코드 실행). `docker.sock` 을 `pocsandbox` 사이드카에만 격리하고 정적검사+무-egress 실행+자원캡+자동 teardown+인라인 확인으로 제한하지만 **잔여 위험**이 있습니다([security.md](.claude/rules/security.md)). 사용 전 사이드카 기동 필요: `docker compose --profile poc up -d pocsandbox`
+> ⚠️ `/pocrun` 은 **LLM 생성 코드를 실행**합니다(임의 코드 실행). 확인 1회가 최대 N회 격리 실행을 인가하며, `docker.sock` 을 `pocsandbox` 사이드카에만 격리하고 매 재빌드도 정적검사+무-egress(`--network none`)+자원캡+자동 teardown 을 거칩니다. **보안 정적검사 위반은 자동 수정하지 않습니다.** 잔여 위험은 [security.md](.claude/rules/security.md). 사용 전 사이드카 기동 필요: `docker compose --profile poc up -d pocsandbox`
 
 ### 빠른 도구
 
 | 명령 | 설명 |
 |------|------|
 | `/run` | 의존성 보안 감사 파이프라인 (OSV 스캔 → AI 분석 → 교정 리포트, 승인 게이트) |
-| `/lint` | `ruff check` 실행 후 결과 보고 |
-| `/test` | `pytest` 실행 후 통과/실패 보고 |
-| `/audit` | `pip-audit` CVE 검사 |
+| `/ci` | 로컬 CI 통합 — `ruff check` + `pytest` + `pip-audit` 를 한 번에 실행해 통합 리포트 |
 | `/diff` | 마지막 커밋 변경 통계 |
 | `/commit` | 변경 내역으로 커밋 메시지 생성 → 미리보기 → 확인 시 로컬 커밋 (push 안 함) |
 | `/push` | 현재 브랜치를 origin 으로 push (미리보기 → 확인 버튼) |
@@ -262,7 +282,7 @@ START → plan(JSON 분해) → execute(루프) → END
 | `/digest` | 최근 vault 노트를 요약한 주간 브리핑 노트 생성 |
 | `/notes` | vault 노트 발행(✅)/비공개(⬜) 토글 → `🚀 발행 적용`(export+commit+push, 확인 후) |
 
-> ⚠️ `/lint`·`/test`·`/audit` 는 dev 도구(ruff·pytest·pip-audit)가 필요합니다. 프로덕션
+> ⚠️ `/ci` 는 dev 도구(ruff·pytest·pip-audit)가 필요합니다. 프로덕션
 > 워커 이미지(`runtime`)는 lean 정책상 이 도구가 없으므로, **dev 타겟**으로 워커를 빌드해야
 > 동작합니다:
 > ```bash
@@ -443,6 +463,7 @@ uv run python -m evals --mode live --out r.md     # 품질 채점(과금)
 | `WORKER_MAX_TOKENS` | | `8192` | 최대 토큰 |
 | `WORKER_MAX_ITERATIONS` | | `10` | ReAct 최대 반복 |
 | `WORKER_TIMEOUT_S` | | `120` | 작업 타임아웃(초) |
+| `POC_AUTOPILOT_MAX_ITERATIONS` | | `3` | `/pocrun` autopilot 빌드↔수정 최대 반복 |
 | `VLLM_ENDPOINT` | | — | 설정 시 Claude 대신 vLLM 사용 |
 | `VLLM_MODEL` | | `Qwen/Qwen2.5-Coder-7B-Instruct` | vLLM 서빙 모델 |
 | `APP_IMAGE` | | `ghcr.io/currentjob/devops-pipeline:latest` | 레지스트리 실행 시 이미지 |
