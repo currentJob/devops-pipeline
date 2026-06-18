@@ -47,7 +47,11 @@
 - `docker.sock` 마운트 — **`pocsandbox` 사이드카(profile poc) 단 하나만 예외**.
   bot/worker 등 다른 서비스엔 절대 마운트 금지(호스트 root 급 권한).
 
-> **예외 — `/pocrun` 격리 실행**: LLM 생성 PoC 코드를 실행하는 유일한 경로.
-> `docker.sock` 을 `pocsandbox` 에만 격리하고, 정적검사(privileged·host bind·sock·
-> network_mode host·cap_add 거부) + 무-egress 실행(`--network none`) + 자원캡 +
-> 타임아웃 + 자동 teardown + 인라인 확인(human-gate)으로 제한한다. 잔여위험은 security.md.
+> **예외 — `/pocrun` 자동 파이프라인(autopilot)**: LLM 생성 PoC 코드를 실행하는 유일한 경로.
+> bot `/pocrun` 인라인 확인 **1회**가 `worker /poc/autopilot` 의 빌드→수정→재빌드→평가
+> 루프를 인가한다(빌드 실패 시 worker 가 PoC 소스를 **자동 수정**하므로 "워커는 코드 미수정"
+> 원칙의 의도적 예외 — 단 쓰기는 `prompts/output/poc/<slug>/` 한정, `write_file` 강제).
+> `docker.sock` 은 `pocsandbox` 에만 격리, 매 재빌드도 정적검사(privileged·host bind·sock·
+> network_mode host·cap_add 거부) + 무-egress 실행(`--network none`) + 자원캡 + 타임아웃 +
+> 자동 teardown 을 통과해야 한다. **보안 정적검사 위반(stage=check)은 자동 수정하지 않고 즉시
+> 종료**(우회 시도 차단). 폭주는 `POC_AUTOPILOT_MAX_ITERATIONS` 캡으로 제한. 잔여위험은 security.md.

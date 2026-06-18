@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 # token → slug (확인 콜백이 참조). 봇 프로세스 메모리에만.
 _pending: dict[str, str] = {}
 
-# build(≤300s)+run(≤60s)+teardown 여유
-_RUN_TIMEOUT_S = 600
-_EVAL_TIMEOUT_S = 180  # 평가(정적지표 + LLM 종합)
-_BUILD_LOG_MAX = 1500  # 평가 요약과 함께 실으려 build 로그 축약
+# autopilot 최악 경로: (max_iter+1)회 빌드(샌드박스 ≤600s) + max_iter회 LLM 수정 + 평가.
+# worker 가 실제 완료해도 bot 이 먼저 끊겨 오탐("연결 실패")하지 않도록 반복 캡에서 파생.
+# 진행은 /notify 로 중계되므로 이 긴 대기는 최종 요약 수신용일 뿐.
+_AUTOPILOT_TIMEOUT_S = (config.POC_AUTOPILOT_MAX_ITERATIONS + 1) * 900 + 300
 
 
 async def cmd_pocs(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -80,14 +80,15 @@ async def cmd_pocrun(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     keyboard = InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("✅ 격리 실행", callback_data=f"pocrun_apply:{token}"),
+                InlineKeyboardButton("✅ 자동 실행", callback_data=f"pocrun_apply:{token}"),
                 InlineKeyboardButton("❌ 취소", callback_data=f"pocrun_cancel:{token}"),
             ]
         ]
     )
     await update.message.reply_text(
-        f"⚠️ PoC 격리 실행 — `{slug}`\n\n"
-        "LLM 이 생성한 코드를 build + 단일 실행합니다(무-egress·자원캡·자동 정리).\n"
+        f"⚠️ PoC 자동 파이프라인 — `{slug}`\n\n"
+        "LLM 이 생성한 코드를 격리 build/run → 실패 시 자동 수정 후 재빌드 반복 → 평가까지 진행합니다.\n"
+        "이 확인 1회가 최대 N회 격리 실행을 인가합니다(무-egress·자원캡·자동 정리).\n"
         "신뢰할 수 있는 PoC 인지 확인 후 진행하세요. 계속할까요?",
         reply_markup=keyboard,
         parse_mode="Markdown",
@@ -111,61 +112,46 @@ async def handle_pocrun_callback(update: Update, _context: ContextTypes.DEFAULT_
         await query.answer()
         return
 
-    await query.answer("격리 실행 중... (build 포함 수 분 소요)")
+    await query.answer("자동 파이프라인 실행 중... (빌드·수정·평가, 수 분 소요)")
+    await query.edit_message_text(
+        f"⚙️ PoC autopilot — `{slug}`\n빌드 → (실패 시) 자동 수정 → 재빌드 → 평가 진행 중...\n"
+        "_진행 상황은 알림으로 중계됩니다._",
+        parse_mode="Markdown",
+    )
+
+    # worker 가 LangGraph 로 빌드↔수정 루프 + 평가까지 수행하고 최종 요약을 회신한다.
+    # (bot 은 read-only 라 PoC 파일 접근/실행 불가 → 파이프라인 본체는 worker)
     try:
         async with (
             aiohttp.ClientSession() as session,
             session.post(
-                config.POCSANDBOX_RUN_URL,
+                config.WORKER_POC_AUTOPILOT_URL,
                 json={"slug": slug},
-                timeout=aiohttp.ClientTimeout(total=_RUN_TIMEOUT_S),
+                timeout=aiohttp.ClientTimeout(total=_AUTOPILOT_TIMEOUT_S),
             ) as resp,
-            # pocsandbox 미기동(profile poc 안 띄움) 등은 ClientError 로 처리
         ):
             data = await resp.json()
     except aiohttp.ClientError as e:
-        logger.warning("pocsandbox 통신 실패 slug=%s: %s", slug, e)
+        logger.warning("autopilot 통신 실패 slug=%s: %s", slug, e)
         await query.edit_message_text(
-            f"{query.message.text}\n\n→ 🔴 샌드박스 연결 실패: {e}\n"
-            "`docker compose --profile poc up -d pocsandbox` 로 사이드카를 띄웠는지 확인하세요."
-        )
-        return
-
-    icon = "✅" if data.get("ok") else "🔴"
-    stage = data.get("stage", "?")
-    logs = (data.get("logs") or "")[:_BUILD_LOG_MAX]
-    build_block = f"{icon} PoC 격리 실행 — `{slug}` (stage: {stage})\n\n```\n{logs}\n```"
-    await query.edit_message_text(
-        f"{build_block}\n\n🧪 평가 중... (정적지표 + LLM 종합)", parse_mode="Markdown"
-    )
-
-    # 통합 평가: build 결과를 worker 로 보내 EVALUATION.md 생성 + 요약 회신.
-    # (bot 은 read-only 라 PoC 파일에 접근 불가 → 평가 본체는 worker 가 수행)
-    try:
-        async with (
-            aiohttp.ClientSession() as session,
-            session.post(
-                config.WORKER_POC_EVAL_URL,
-                json={"slug": slug, "build_result": data},
-                timeout=aiohttp.ClientTimeout(total=_EVAL_TIMEOUT_S),
-            ) as resp,
-        ):
-            eval_data = await resp.json()
-    except aiohttp.ClientError as e:
-        logger.warning("PoC 평가 호출 실패 slug=%s: %s", slug, e)
-        await query.edit_message_text(
-            f"{build_block}\n\n🟡 평가 생략 — worker 연결 실패: {e}", parse_mode="Markdown"
-        )
-        return
-
-    if not eval_data.get("ok"):
-        await query.edit_message_text(
-            f"{build_block}\n\n🟡 평가 실패: {eval_data.get('detail', '?')}",
+            f"🔴 autopilot 연결 실패 — `{slug}`: {e}\n"
+            "worker 기동과 `docker compose --profile poc up -d pocsandbox` 를 확인하세요.",
             parse_mode="Markdown",
         )
         return
 
-    await query.edit_message_text(
-        f"{build_block}\n\n{poc_eval.format_telegram_summary(eval_data)}",
-        parse_mode="Markdown",
+    if not data.get("ok"):
+        await query.edit_message_text(
+            f"🔴 autopilot 실패 — `{slug}`: {data.get('detail', '?')}", parse_mode="Markdown"
+        )
+        return
+
+    build_ok = data.get("build_ok")
+    head = (
+        f"{'✅' if build_ok else '🟡'} *PoC autopilot* — `{slug}`\n"
+        f"{'✅ 빌드 성공' if build_ok else '🔴 빌드 미통과'} "
+        f"(stage: {data.get('build_stage', '?')}, 자동 수정 {data.get('iterations', 0)}회)\n\n"
     )
+    eval_data = data.get("eval") or {}
+    summary = poc_eval.format_telegram_summary(eval_data) if eval_data else "_(평가 없음)_"
+    await query.edit_message_text(head + summary, parse_mode="Markdown")

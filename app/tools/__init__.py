@@ -160,6 +160,8 @@ ROUTE_TOOLS: dict[str, list[str]] = {
     "stack": ["recent_research", "vault_search", "vault_save"],
     # poc: 호환 서비스 조합 PoC 스캐폴드 생성 — bash 없음(무실행), write 는 prompts/output/ 한정
     "poc": ["recent_research", "vault_search", "read_file", "write_file"],
+    # pocfix: autopilot 빌드 실패 시 PoC 소스 수정 — read/write 한정(write 는 prompts/output/ 강제)
+    "pocfix": ["read_file", "write_file"],
     "general": _ALL_TOOL_NAMES,
 }
 

@@ -359,6 +359,27 @@ async def _handle_poc_eval(request: web.Request) -> web.Response:
     return _json({"ok": True, **result})
 
 
+async def _handle_poc_autopilot(request: web.Request) -> web.Response:
+    """PoC 자동 빌드→수정→재빌드→평가 파이프라인. bot /pocrun 확인 후 1회 호출.
+
+    body: {slug, max_iterations?}. LLM 생성 코드를 최대 N회 자동 격리 실행/수정 — 휴먼게이트는
+    bot 확인 1회. 길게(수 분) 도는 요청이라 작업 큐(세마포어)와 무관하게 핸들러에서 직접 실행.
+    """
+    from app.pipeline import poc_pipeline
+
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "detail": "invalid json"}, status=400)
+    slug = (body.get("slug") or "").strip()
+    try:
+        result = await poc_pipeline.run_autopilot(slug, body.get("max_iterations"))
+    except Exception as e:
+        logger.exception("PoC autopilot 실패 slug=%s", slug)
+        return _json({"ok": False, "detail": f"{type(e).__name__}: {e}"}, status=500)
+    return _json(result, status=200 if result.get("ok") else 400)
+
+
 async def _handle_poc_list(_request: web.Request) -> web.Response:
     """`/poc` 가 생성한 PoC 목록(slug·파일 수·구성/평가 유무). 봇 /pocs."""
     from app.pipeline import poc_eval
@@ -426,6 +447,7 @@ async def main() -> None:
     app.router.add_post("/vault/publish/apply", _handle_vault_publish_apply)
     app.router.add_post("/digest", _handle_digest)
     app.router.add_post("/poc/eval", _handle_poc_eval)
+    app.router.add_post("/poc/autopilot", _handle_poc_autopilot)
     app.router.add_get("/poc/list", _handle_poc_list)
     app.router.add_get("/tasks", _handle_tasks)
     app.router.add_get("/health", _handle_health)

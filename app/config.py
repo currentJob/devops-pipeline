@@ -71,6 +71,10 @@ WORKER_VAULT_REINDEX_URL: str = os.environ.get(
 WORKER_DIGEST_URL: str = os.environ.get("WORKER_DIGEST_URL", "http://worker:8766/digest")
 WORKER_POC_EVAL_URL: str = os.environ.get("WORKER_POC_EVAL_URL", "http://worker:8766/poc/eval")
 WORKER_POC_LIST_URL: str = os.environ.get("WORKER_POC_LIST_URL", "http://worker:8766/poc/list")
+# PoC 자동 파이프라인(빌드→수정→재빌드→평가). bot /pocrun 이 확인 후 1회 호출.
+WORKER_POC_AUTOPILOT_URL: str = os.environ.get(
+    "WORKER_POC_AUTOPILOT_URL", "http://worker:8766/poc/autopilot"
+)
 WORKER_VAULT_NOTES_URL: str = os.environ.get(
     "WORKER_VAULT_NOTES_URL", "http://worker:8766/vault/notes"
 )
@@ -80,8 +84,10 @@ WORKER_VAULT_PUBLISH_URL: str = os.environ.get(
 WORKER_VAULT_PUBLISH_APPLY_URL: str = os.environ.get(
     "WORKER_VAULT_PUBLISH_APPLY_URL", "http://worker:8766/vault/publish/apply"
 )
-# PoC 격리 실행 사이드카 (profile poc). /pocrun 이 호출.
+# PoC 격리 실행 사이드카 (profile poc). worker autopilot 이 반복 호출.
 POCSANDBOX_RUN_URL: str = os.environ.get("POCSANDBOX_RUN_URL", "http://pocsandbox:8770/run")
+# PoC autopilot 빌드↔수정 최대 반복 횟수 (폭주·비용·egress 노출 캡). 1회 확인이 최대 N회 격리 실행을 인가.
+POC_AUTOPILOT_MAX_ITERATIONS: int = int(os.environ.get("POC_AUTOPILOT_MAX_ITERATIONS", "3"))
 WORKER_MAX_CONCURRENT: int = int(os.environ.get("WORKER_MAX_CONCURRENT", "3"))
 WORKER_QUEUE_SIZE: int = int(os.environ.get("WORKER_QUEUE_SIZE", "50"))
 # 새 작업 시 참조할 직전 작업 요약본 개수 (0 = 비활성)
