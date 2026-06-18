@@ -11,13 +11,14 @@ OSV.dev 공개 API (키 불필요):
 from __future__ import annotations
 
 import asyncio
-import datetime
 import logging
 import os
 from importlib import metadata
 from pathlib import Path
 
 import aiohttp
+
+from app import clock
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +151,7 @@ def build_findings_text(audit: dict, max_pkgs: int = 30) -> str:
 
 def build_report_markdown(audit: dict, analysis_summary: str) -> str:
     """저장용 교정 리포트 마크다운."""
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = clock.today().strftime("%Y-%m-%d")
     return "\n".join(
         [
             f"# 의존성 보안 감사 리포트 — {today}",
@@ -172,7 +173,7 @@ def build_report_markdown(audit: dict, analysis_summary: str) -> str:
 def save_report(markdown: str) -> str:
     """리포트를 REPORT_DIR 에 저장하고 경로 문자열 반환."""
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    ts = clock.now().strftime("%Y%m%d-%H%M%S")
     path = REPORT_DIR / f"security-audit-{ts}.md"
     path.write_text(markdown, encoding="utf-8")
     return str(path)

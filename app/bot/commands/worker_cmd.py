@@ -1,10 +1,8 @@
-import datetime
-
 import aiohttp
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from app import config
+from app import clock, config
 from app.bot.commands import _authorized, _dispatch_to_worker, _worker_post_json
 
 
@@ -194,8 +192,8 @@ async def cmd_diff(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def _stack_prompt() -> str:
     """/stack 워커 지시문 — 절차가 길어 핸들러에서 분리."""
-    today = datetime.date.today().strftime("%Y-%m-%d")
-    year = datetime.date.today().year
+    today = clock.today().strftime("%Y-%m-%d")
+    year = clock.today().year
     return (
         f"[STACK_TASK] 오늘 날짜: {today}. 다음 절차를 정확히 따라 실행해라.\n\n"
         "1. vault_search 도구로 다음 4가지 쿼리를 차례로 호출해 기존 노트 제목을 수집:\n"
@@ -244,7 +242,7 @@ async def cmd_stack(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None
 
 def _poc_prompt(theme: str) -> str:
     """/poc 워커 지시문 — 호환 서비스 조합 → prompts/output/poc/ 에 PoC 스캐폴드."""
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = clock.today().strftime("%Y-%m-%d")
     theme_line = (
         f"테마: {theme}" if theme else "테마 미지정 — recent_research 로 조합 주제를 직접 선정"
     )

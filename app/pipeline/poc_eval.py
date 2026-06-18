@@ -13,8 +13,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
+
+from app import clock
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +288,7 @@ def render_report(slug: str, metrics: dict, build_result: dict, parsed: dict, ll
     lines = [
         f"# PoC 평가 — {slug}",
         "",
-        f"_생성: {datetime.now().strftime('%Y-%m-%d %H:%M')}_",
+        f"_생성: {clock.now().strftime('%Y-%m-%d %H:%M')} KST_",
         "",
         "## 종합",
         "",

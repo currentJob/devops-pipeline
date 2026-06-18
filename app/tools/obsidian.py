@@ -10,10 +10,9 @@ Obsidian 은 API 가 없고 vault 폴더의 .md 파일이 곧 데이터다.
 
 from __future__ import annotations
 
-import datetime
 import re
 
-from app import config
+from app import clock, config
 from app.tools import filesystem  # 지연 참조: 테스트의 WORKSPACE monkeypatch 반영
 
 # 파일/폴더명 금지 문자 (Windows/POSIX 공통 + 제어문자)
@@ -52,7 +51,7 @@ def _frontmatter(title: str, tags: list[str], aliases: list[str]) -> str:
 
     tags 는 계층형 중첩(예: type/research, area/vector-db, tech/qdrant)을 권장한다.
     """
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = clock.today().strftime("%Y-%m-%d")
     safe_title = title.replace('"', "'")
     return (
         "---\n"

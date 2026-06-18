@@ -9,12 +9,11 @@ LLM 호출은 app.agent.runtime (anthropic/openai 직접) 으로 위임한다.
 
 from __future__ import annotations
 
-import datetime
 import json
 import logging
 from enum import StrEnum
 
-from app import config
+from app import clock, config
 from app.agent import runtime
 from app.agent.outcome import Outcome
 from app.agent.runtime import _notify, _route_backend_label  # 재노출 (worker/agent.py 호환)
@@ -131,7 +130,7 @@ _ROUTE_PROMPT: dict[str, str] = {
 
 
 def _dated(prompt: str) -> str:
-    return prompt + f"\n\n오늘 날짜: {datetime.date.today().strftime('%Y-%m-%d')}."
+    return prompt + f"\n\n오늘 날짜: {clock.today().strftime('%Y-%m-%d')}."
 
 
 # ── 메모리 ────────────────────────────────────────────────────────────────────
@@ -255,7 +254,7 @@ async def run_task(task_id: str, description: str) -> Outcome:
 
 async def _plan(task_id: str, description: str) -> list[str]:
     """복합 작업을 하위 작업 목록으로 분해 (실패 시 원본 단일 작업)."""
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = clock.today().strftime("%Y-%m-%d")
     raw = await runtime.chat(
         system=(
             "작업 분해 전문가입니다. 복합 작업을 독립 실행 가능한 하위 작업으로 분해하세요.\n"

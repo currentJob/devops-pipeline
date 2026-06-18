@@ -1,4 +1,3 @@
-import datetime
 import time
 
 import aiohttp
@@ -6,7 +5,7 @@ import psutil
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from app import config
+from app import clock, config
 from app.bot.commands import _authorized, _format_uptime, _state
 
 
@@ -70,11 +69,11 @@ async def cmd_status(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> Non
     cpu = psutil.cpu_percent(interval=1)
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = clock.now().strftime("%Y-%m-%d %H:%M:%S")
 
     await update.message.reply_text(
         f"📊 *서버 상태*\n\n"
-        f"🕐 시각: {now}\n"
+        f"🕐 시각: {now} KST\n"
         f"💻 CPU: {cpu}%\n"
         f"🧠 메모리: {mem.percent}% ({mem.used // 1024**2}MB / {mem.total // 1024**2}MB)\n"
         f"💾 디스크: {disk.percent}% 사용 중\n"

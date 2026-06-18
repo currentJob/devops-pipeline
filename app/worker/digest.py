@@ -13,7 +13,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from app import config
+from app import clock, config
 from app.agent import runtime
 from app.rag.vault_index import _parse_tags
 from app.tools import filesystem, obsidian
@@ -27,7 +27,7 @@ _TITLE_RE = re.compile(r'^title:\s*"?(.+?)"?\s*$', re.MULTILINE)
 
 def _recent_notes(vault_dir: Path, days: int) -> list[tuple[str, str, list[str]]]:
     """최근 days 일 내 created 된 노트 (title, 본문요약, tags). 생성물(_)·다이제스트 제외."""
-    cutoff = datetime.date.today() - datetime.timedelta(days=days)
+    cutoff = clock.today() - datetime.timedelta(days=days)
     out: list[tuple[str, str, list[str]]] = []
     for path in sorted(vault_dir.rglob("*.md")):
         if path.name.startswith("_"):
@@ -63,7 +63,7 @@ def _dominant_tech(notes: list[tuple[str, str, list[str]]]) -> str:
 async def generate_digest(days: int | None = None) -> str:
     """최근 노트 요약 다이제스트 노트를 생성하고 vault_save 결과(경로 문자열)를 반환."""
     days = days or config.DIGEST_INTERVAL_DAYS
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = clock.today().strftime("%Y-%m-%d")
     vault_dir = filesystem.WORKSPACE / config.VAULT_SUBDIR
     notes = _recent_notes(vault_dir, days) if vault_dir.is_dir() else []
 
