@@ -1,18 +1,21 @@
-import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 
 import aiohttp
-import anthropic
 from telegram.ext import Application
 
 from app import config
+from app.agent import runtime
 from app.bot import notifier
 from app.pipeline import security_audit
 
 logger = logging.getLogger(__name__)
+
+_ANALYST_SYSTEM = (
+    "당신은 자동화 파이프라인의 분석 전문가입니다. 간결하고 명확하게 분석 결과를 제공하세요."
+)
 
 
 class StepStatus(Enum):
@@ -29,33 +32,18 @@ class PipelineResult:
     data: dict = field(default_factory=dict)
 
 
-def _claude_client() -> anthropic.Anthropic | None:
-    if not config.CLAUDE_API_KEY:
-        logger.warning("CLAUDE_API_KEY 미설정 - Claude 기능 비활성화")
-        return None
-    return anthropic.Anthropic(api_key=config.CLAUDE_API_KEY)
+async def analyze_with_llm(prompt: str) -> str:
+    """통합 런타임(runtime.chat)으로 분석 요약을 반환 — Claude/vLLM 자동 선택·폴백.
 
-
-def analyze_with_claude(prompt: str) -> str:
-    """Claude로 데이터를 분석하고 요약 텍스트를 반환."""
-    client = _claude_client()
-    if client is None:
-        return "(Claude 미연결 - 분석 생략)"
-
+    미연결/호출 실패 시에도 파이프라인이 진행되도록 안내 문자열로 graceful 폴백한다.
+    """
+    if not (config.CLAUDE_API_KEY or config.VLLM_ENDPOINT):
+        return "(LLM 미연결 - 분석 생략)"
     try:
-        response = client.messages.create(
-            model=config.WORKER_MODEL,
-            max_tokens=config.WORKER_MAX_TOKENS,
-            system="당신은 자동화 파이프라인의 분석 전문가입니다. 간결하고 명확하게 분석 결과를 제공하세요.",
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.content[0].text
-    except anthropic.AuthenticationError:
-        logger.warning("Claude API 키 인증 실패 - 분석 건너뜀 (CLAUDE_API_KEY 확인 필요)")
-        return "(Claude 인증 실패 - .env의 CLAUDE_API_KEY를 확인하세요)"
-    except anthropic.APIError as e:
-        logger.warning("Claude API 오류: %s", e)
-        return f"(Claude API 오류 - {e})"
+        return await runtime.chat(system=_ANALYST_SYSTEM, user=prompt)
+    except Exception as e:  # noqa: BLE001 — LLM 실패해도 감사 결과·리포트는 유효
+        logger.warning("보안 분석 LLM 호출 실패: %s", e)
+        return f"(LLM 분석 실패 - {type(e).__name__})"
 
 
 async def step_collect(app: Application) -> PipelineResult:
@@ -98,8 +86,7 @@ async def step_analyze(app: Application, audit: dict) -> PipelineResult:
         "3) 업그레이드 시 호환성 리스크 간단 평가\n\n"
         f"{findings}"
     )
-    # Claude 호출은 블로킹이므로 별도 스레드에서 실행 (봇 이벤트 루프 보호)
-    summary = await asyncio.to_thread(analyze_with_claude, prompt)
+    summary = await analyze_with_llm(prompt)
 
     approved = await notifier.request_approval(
         app=app,

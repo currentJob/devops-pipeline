@@ -110,20 +110,18 @@ def register_commands(app: Application) -> None:
         cmd_uptime,
     )
     from app.bot.commands.worker_cmd import (
-        cmd_audit,
+        cmd_ci,
         cmd_code,
         cmd_diff,
         cmd_digest,
         cmd_doc,
         cmd_history,
         cmd_infra,
-        cmd_lint,
         cmd_plan,
         cmd_poc,
         cmd_reindex,
         cmd_stack,
         cmd_task,
-        cmd_test,
     )
 
     app.add_handler(CommandHandler("start", cmd_start))
@@ -139,9 +137,7 @@ def register_commands(app: Application) -> None:
     app.add_handler(CommandHandler("uptime", cmd_uptime))
     app.add_handler(CommandHandler("health", cmd_health))
     app.add_handler(CommandHandler("model", cmd_model))
-    app.add_handler(CommandHandler("lint", cmd_lint))
-    app.add_handler(CommandHandler("test", cmd_test))
-    app.add_handler(CommandHandler("audit", cmd_audit))
+    app.add_handler(CommandHandler("ci", cmd_ci))
     app.add_handler(CommandHandler("diff", cmd_diff))
     app.add_handler(CommandHandler("stack", cmd_stack))
     app.add_handler(CommandHandler("poc", cmd_poc))

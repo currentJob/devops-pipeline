@@ -61,6 +61,22 @@ def _make_handler(bot_app: Application):
     return handle
 
 
+async def _send_autopilot_offer(bot_app: Application, slug: str) -> None:
+    """`/poc` 생성 PoC 의 자동 빌드·평가 제안 버튼 전송 (best-effort)."""
+    from app.bot.commands.pocrun_cmd import make_autopilot_offer
+
+    text, keyboard = make_autopilot_offer(slug)
+    try:
+        await bot_app.bot.send_message(
+            chat_id=config.TELEGRAM_CHAT_ID,
+            text=text,
+            reply_markup=keyboard,
+            parse_mode="Markdown",
+        )
+    except TelegramError as e:
+        logger.warning("autopilot 제안 버튼 전송 실패 slug=%s: %s", slug, e)
+
+
 def _make_worker_result_handler(bot_app: Application):
     """워커가 보낸 작업 결과를 텔레그램으로 전달."""
 
@@ -85,6 +101,11 @@ def _make_worker_result_handler(bot_app: Application):
         except TelegramError as e:
             logger.warning("worker-result 전달 실패: %s", e)
             return web.Response(status=503, text=f"send failed: {e}")
+
+        # /poc 생성 결과면 자동 빌드·평가 제안 버튼을 후속 메시지로 (휴먼게이트 유지)
+        poc_slug = body.get("poc_slug")
+        if poc_slug:
+            await _send_autopilot_offer(bot_app, poc_slug)
 
         return web.Response(status=200, text="ok")
 

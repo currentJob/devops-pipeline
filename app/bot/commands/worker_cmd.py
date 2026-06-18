@@ -148,33 +148,18 @@ async def cmd_history(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")
 
 
-async def cmd_lint(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_ci(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    """`/ci` — 로컬 CI 통합 점검: ruff(린트) + pytest(테스트) + pip-audit(취약점)."""
     if not _authorized(update):
         return
     await _dispatch_to_worker(
         update,
-        "bash 도구로 'ruff check .' 를 실행하고 결과를 한국어로 보고해줘. "
-        "0 errors 면 '✅ ruff 통과' 만 답해. 오류가 있으면 파일+규칙ID+간단 설명만 표로 정리.",
-    )
-
-
-async def cmd_test(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _authorized(update):
-        return
-    await _dispatch_to_worker(
-        update,
-        "bash 도구로 'pytest tests/ -v' 를 실행하고, 통과/실패 개수만 우선 보고해. "
-        "실패가 있으면 어떤 케이스가 왜 실패했는지 한 줄씩만.",
-    )
-
-
-async def cmd_audit(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _authorized(update):
-        return
-    await _dispatch_to_worker(
-        update,
-        "bash 도구로 'pip-audit' 를 실행하고, CVE 가 있으면 "
-        "패키지+CVE-ID+심각도만 표로 한국어 정리. 없으면 '✅ CVE 0건' 만 답해.",
+        "bash 도구로 로컬 CI 점검을 순서대로 실행하고 결과를 하나의 한국어 리포트로 합쳐줘:\n"
+        "1) 'ruff check .' — 린트\n"
+        "2) 'pytest tests/ -q' — 테스트\n"
+        "3) 'pip-audit' — 의존성 취약점(CVE)\n\n"
+        "맨 위에 전체 `PASS`/`FAIL` 한 줄 헤더를 두고, 각 항목을 ✅/🔴 로 요약해줘 "
+        "(린트 오류 수·테스트 통과/실패 수·CVE 수). 실패가 있으면 핵심 사유만 한 줄씩 덧붙여.",
     )
 
 

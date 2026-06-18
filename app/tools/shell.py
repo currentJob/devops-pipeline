@@ -18,7 +18,7 @@ BASH_ALLOWLIST: tuple[str, ...] = (
     "git log",
     "git ls-files",
     "git show",
-    # dev 이미지(runtime-dev)에 포함된 도구 — /lint·/test·/audit 가 직접 호출
+    # dev 이미지(runtime-dev)에 포함된 도구 — /ci 통합 점검이 직접 호출
     "ruff",
     "pytest",
     "pip-audit",

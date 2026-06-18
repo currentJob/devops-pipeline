@@ -60,12 +60,15 @@ def _spawn(coro) -> asyncio.Task:
     return task
 
 
-async def _report_result(task_id: str, result: str) -> None:
+async def _report_result(task_id: str, result: str, poc_slug: str | None = None) -> None:
+    payload: dict = {"task_id": task_id, "result": result}
+    if poc_slug:  # /poc 생성 결과 — 봇이 자동 빌드·평가 버튼을 붙이도록 slug 전달
+        payload["poc_slug"] = poc_slug
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(
                 config.WORKER_BOT_RESULT_URL,
-                json={"task_id": task_id, "result": result},
+                json=payload,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status != 200:
@@ -115,7 +118,16 @@ async def _process_task(job: _Job) -> None:
         failed = not outcome.ok
         await store.set_done(task_id, outcome.text, failed=failed)
         metrics.TASKS_TOTAL.labels(status="failed" if failed else "done").inc()
-        await _report_result(task_id, outcome.text)
+        # /poc 생성이 성공하면 결과에서 slug 를 뽑아 봇에 전달 → 자동 빌드·평가 버튼 연결
+        poc_slug = None
+        if not failed and job.description.startswith("[POC_TASK]"):
+            from app.pipeline import poc_eval
+            from app.tools import filesystem
+
+            poc_slug = poc_eval.find_generated_slug(
+                outcome.text, filesystem.WORKSPACE / poc_eval.POC_OUTPUT_SUBDIR
+            )
+        await _report_result(task_id, outcome.text, poc_slug=poc_slug)
         logger.info("작업 완료 task_id=%s", task_id)
 
     # 다음 작업이 참조할 요약본 저장 (계측 구간 밖, 실패해도 무시)

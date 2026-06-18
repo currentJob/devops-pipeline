@@ -80,6 +80,19 @@ def valid_slug(slug: str) -> bool:
     return bool(_SLUG_RE.fullmatch(slug or ""))
 
 
+def find_generated_slug(text: str, base: Path) -> str | None:
+    """결과 텍스트에서 생성된 PoC slug 를 추출 (base 하위 디렉토리 존재로 검증). 없으면 None.
+
+    /poc 결과는 'prompts/output/poc/<slug>/' 경로를 포함한다. 첫 매칭 중 실제 존재하는
+    디렉토리를 반환해, 봇이 자동 빌드·평가 버튼을 붙일 수 있게 한다.
+    """
+    for m in re.finditer(rf"{POC_OUTPUT_SUBDIR}/([a-z0-9][a-z0-9_-]{{0,63}})", text or ""):
+        slug = m.group(1)
+        if (base / slug).is_dir():
+            return slug
+    return None
+
+
 def list_pocs(base: Path) -> list[dict]:
     """`/poc` 가 생성한 PoC 목록 — slug·파일 수·구성/평가 유무 (가벼운 stat만)."""
     if not base.is_dir():

@@ -52,6 +52,17 @@ def test_valid_slug():
     assert not poc_eval.valid_slug("")
 
 
+def test_find_generated_slug(tmp_path):
+    base = tmp_path / "poc"
+    (base / "my-poc").mkdir(parents=True)
+    text = "생성 완료: prompts/output/poc/my-poc/ — 로컬 Claude Code 로 빌드·검증하세요"
+    assert poc_eval.find_generated_slug(text, base) == "my-poc"
+    # 디렉토리가 없으면 None (텍스트에만 있고 실제 생성 안 된 경로 무시)
+    text2 = "prompts/output/poc/ghost-poc/README.md"
+    assert poc_eval.find_generated_slug(text2, base) is None
+    assert poc_eval.find_generated_slug("", base) is None
+
+
 def test_collect_metrics(tmp_path):
     m = poc_eval.collect_metrics(_make_poc(tmp_path))
     assert m["services"] == 2

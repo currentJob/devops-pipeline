@@ -95,6 +95,28 @@ async def cmd_pocrun(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+def make_autopilot_offer(slug: str) -> tuple[str, InlineKeyboardMarkup]:
+    """`/poc` 생성 직후 봇이 붙이는 자동 빌드·평가 제안 (text, keyboard).
+
+    기존 pocrun 확인 콜백(pocrun_apply/cancel)을 그대로 재사용 — 탭하면 autopilot 실행.
+    """
+    token = str(uuid.uuid4())[:8]
+    _pending[token] = slug
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("▶️ 자동 빌드·평가", callback_data=f"pocrun_apply:{token}"),
+                InlineKeyboardButton("나중에", callback_data=f"pocrun_cancel:{token}"),
+            ]
+        ]
+    )
+    text = (
+        f"🧪 생성된 PoC `{slug}` 를 지금 자동 빌드→수정→평가할까요?\n"
+        "이 확인 1회가 최대 N회 격리 실행을 인가합니다(무-egress·자원캡·자동 정리)."
+    )
+    return text, keyboard
+
+
 async def handle_pocrun_callback(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if not _authorized(update):  # 콜백도 인가된 chat 에서만
