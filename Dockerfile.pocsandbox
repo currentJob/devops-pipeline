@@ -1,6 +1,6 @@
 # PoC 격리 실행 사이드카 — docker CLI + compose plugin + python3(stdlib only).
 # docker.sock 이 이 컨테이너에만 마운트된다. PoC 를 build + 격리 단일 실행 후 teardown.
-FROM docker:27-cli
+FROM docker:29-cli
 
 RUN apk add --no-cache python3
 
