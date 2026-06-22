@@ -27,7 +27,7 @@ jobs:
       group: deploy-${{ inputs.environment }}
       cancel-in-progress: false   # 배포는 취소하지 않음
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
