@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>남해 여행 · 쏠비치 2박 3일 (7/5–7/7)</title>
+<meta name="description" content="쏠비치 남해 거점 2박 3일. 실시간 지도와 내 위치, 장소별 추천 정보.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --ink:#16343F;
+    --sea:#1F6E7E;
+    --sea-light:#E4EFF0;
+    --yuja:#E8A83D;
+    --green:#5E7F4A;
+    --bg:#F4F6F5;
+    --card:#FFFFFF;
+    --line:#E0E7E5;
+    --muted:#6B8288;
+    --now:#FFF6E3;
+    --radius:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'IBM Plex Sans KR', sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit}
+
+  /* ── 헤더 ── */
+  .top{background:var(--card);padding:16px 20px 12px;border-bottom:1px solid var(--line)}
+  .top-inner{max-width:640px;margin:0 auto}
+  .top h1{font-size:1.15rem;font-weight:700}
+  .top .sub{font-size:.8rem;color:var(--muted)}
+
+  /* ── 고정: 데이칩 + 지도 ── */
+  .sticky{
+    position:sticky;top:0;z-index:20;
+    background:var(--bg);
+    border-bottom:1px solid var(--line);
+    padding-bottom:8px;
+  }
+  .chips{max-width:640px;margin:0 auto;display:flex;gap:8px;padding:10px 16px 8px}
+  .chip{
+    flex:1;border:1px solid var(--line);background:var(--card);
+    border-radius:14px;padding:8px 4px;text-align:center;cursor:pointer;
+    transition:background .15s,border-color .15s;
+  }
+  .chip .d{font-size:.92rem;font-weight:700}
+  .chip .w{font-size:.68rem;color:var(--muted)}
+  .chip[aria-selected="true"]{background:var(--sea);border-color:var(--sea)}
+  .chip[aria-selected="true"] .d,.chip[aria-selected="true"] .w{color:#fff}
+  .chip:focus-visible{outline:3px solid var(--yuja);outline-offset:2px}
+
+  .mapwrap{max-width:640px;margin:0 auto;padding:0 16px;position:relative}
+  #map{
+    height:36vh;min-height:230px;max-height:340px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    z-index:1;
+  }
+  .locate-btn{
+    position:absolute;right:26px;bottom:14px;z-index:10;
+    display:flex;align-items:center;gap:6px;
+    font-size:.78rem;font-weight:700;color:var(--sea);
+    background:#fff;border:1.5px solid var(--sea);
+    border-radius:999px;padding:8px 14px;cursor:pointer;
+    box-shadow:0 2px 6px rgba(22,52,63,.18);
+  }
+  .locate-btn.on{background:var(--sea);color:#fff}
+  .locate-btn:focus-visible{outline:3px solid var(--yuja);outline-offset:2px}
+  .locate-btn svg{width:14px;height:14px;fill:currentColor}
+
+  /* ── 일정 리스트 ── */
+  main{max-width:640px;margin:0 auto;padding:14px 16px 60px}
+  .dayline{font-size:.8rem;font-weight:700;color:var(--green);letter-spacing:.12em;margin:6px 4px 12px}
+  .stops{display:flex;flex-direction:column;gap:10px}
+
+  .stop{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    cursor:pointer;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .stop.active{border-color:var(--sea);box-shadow:0 0 0 2px rgba(31,110,126,.2)}
+  .stop.now{background:var(--now)}
+  .row1{display:flex;align-items:center;gap:10px}
+  .num{
+    flex:none;width:26px;height:26px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--sea);color:#fff;border-radius:50%;
+    font-size:.78rem;font-weight:700;
+  }
+  .stop.meal .num{background:var(--green)}
+  .tt{flex:1;min-width:0}
+  .tt .name{font-size:1rem;font-weight:700}
+  .tt .meta{font-size:.75rem;color:var(--muted)}
+  .badge-now{flex:none;font-size:.68rem;font-weight:700;color:#8A5A00;background:#F6E3BC;border-radius:999px;padding:3px 10px}
+  .caret{flex:none;width:18px;height:18px;fill:var(--muted);transition:transform .2s}
+  .stop.open .caret{transform:rotate(180deg)}
+
+  /* 펼침 상세 */
+  .detail{display:none;margin:10px 0 0 36px}
+  .stop.open .detail{display:block}
+  .note{font-size:.84rem;color:#3E565E}
+  .warn{
+    display:inline-block;margin-top:8px;
+    font-size:.73rem;font-weight:500;color:#8A5A00;
+    background:#FBF0DA;border-radius:8px;padding:2px 9px;
+  }
+  .sec{margin-top:10px}
+  .sec .h{font-size:.72rem;font-weight:700;color:var(--sea);letter-spacing:.08em;margin-bottom:5px}
+  .recs{display:flex;flex-wrap:wrap;gap:6px}
+  .rec{
+    font-size:.76rem;font-weight:500;
+    background:var(--sea-light);color:#1D5560;
+    border-radius:999px;padding:4px 11px;
+  }
+  .stop.meal .rec{background:#EAF0E3;color:#4A653A}
+  .infos{list-style:none}
+  .infos li{font-size:.78rem;color:#3E565E;padding:2px 0 2px 14px;position:relative}
+  .infos li::before{
+    content:"";position:absolute;left:2px;top:11px;
+    width:5px;height:5px;border-radius:50%;background:var(--yuja);
+  }
+  .btns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:.78rem;font-weight:700;
+    border-radius:999px;padding:8px 14px;
+    text-decoration:none;cursor:pointer;
+    border:1.5px solid var(--sea);
+  }
+  .btn-primary{background:var(--sea);color:#fff}
+  .btn-primary:active{background:#175561}
+  .btn-ghost{background:transparent;color:var(--sea)}
+  .btn-ghost:active{background:var(--sea-light)}
+  .btn:focus-visible{outline:3px solid var(--yuja);outline-offset:2px}
+  .btn svg{width:12px;height:12px;fill:currentColor}
+
+  .foot-tip{
+    max-width:640px;margin:20px auto 0;
+    background:var(--sea-light);border-radius:var(--radius);
+    padding:14px 16px;font-size:.8rem;color:#2A4A53;
+  }
+  .foot-tip b{color:var(--sea)}
+  footer{text-align:center;font-size:.74rem;color:var(--muted);padding:24px 16px calc(24px + env(safe-area-inset-bottom))}
+
+  /* Leaflet 마커 */
+  .num-marker{
+    display:flex;align-items:center;justify-content:center;
+    width:28px;height:28px;
+    background:var(--sea);color:#fff;
+    border:2.5px solid #fff;border-radius:50%;
+    font-family:'IBM Plex Sans KR',sans-serif;font-size:.8rem;font-weight:700;
+    box-shadow:0 1px 4px rgba(22,52,63,.4);
+  }
+  .num-marker.meal{background:var(--green)}
+  .me-marker{
+    width:16px;height:16px;border-radius:50%;
+    background:#2A7FFF;border:3px solid #fff;
+    box-shadow:0 0 0 2px rgba(42,127,255,.4), 0 1px 4px rgba(0,0,0,.3);
+  }
+  .leaflet-popup-content{font-family:'IBM Plex Sans KR',sans-serif;font-size:.85rem;margin:10px 14px}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <h1>남해 · 쏠비치 2박 3일</h1>
+    <p class="sub">2026.7.5(일) – 7.7(화) · 성인 3인 · 자차 · 창선-삼천포대교 입도</p>
+  </div>
+</header>
+
+<div class="sticky">
+  <div class="chips" role="tablist" aria-label="일차 선택">
+    <button class="chip" role="tab" aria-selected="true"><span class="d">7/5</span><span class="w">일 · 입도</span></button>
+    <button class="chip" role="tab" aria-selected="false"><span class="d">7/6</span><span class="w">월 · 명소</span></button>
+    <button class="chip" role="tab" aria-selected="false"><span class="d">7/7</span><span class="w">화 · 귀가</span></button>
+  </div>
+  <div class="mapwrap">
+    <div id="map" role="application" aria-label="여행 코스 지도"></div>
+    <button class="locate-btn" id="locateBtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 3h-1.06A8 8 0 0 0 13 4.06V3a1 1 0 1 0-2 0v1.06A8 8 0 0 0 4.06 11H3a1 1 0 1 0 0 2h1.06A8 8 0 0 0 11 19.94V21a1 1 0 1 0 2 0v-1.06A8 8 0 0 0 19.94 13H21a1 1 0 1 0 0-2zm-9 7a6 6 0 1 1 0-12 6 6 0 0 1 0 12z"/></svg>
+      내 위치
+    </button>
+  </div>
+</div>
+
+<main>
+  <p class="dayline" id="dayline"></p>
+  <div class="stops" id="stops"></div>
+
+  <div class="foot-tip">
+    <b>체크인 팁</b> — 쏠비치 남해는 오픈 초기 기준 오전 8시 번호표 → 12시 방 배정 → 15시 체크인 순서로 운영된 후기가 있습니다. 뷰 좋은 객실을 원하면 1일차에 로비를 먼저 들러 번호표를 받고 점심 식사로 이동하는 순서를 고려하세요.
+  </div>
+</main>
+
+<footer>남해 쏠비치 거점 코스 · 화요일 휴무 시설(스카이워크·앵강마켓)은 일·월에 배치됨</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ── 확정 일정 (2026-07-05 ~ 07-07) ── */
+const TRIP_DATES = ['2026-07-05','2026-07-06','2026-07-07'];
+const DAYS = [
+  {
+    label: 'DAY 1 · 7/5 일요일 — 출발과 체크인',
+    stops: [
+      { t:'08:00', end:'12:20', name:'동탄 출발', meta:'사천IC → 창선-삼천포대교', noMap:true,
+        note:'미조 방면은 남해대교보다 삼천포대교 입도가 30분 이상 빠릅니다.',
+        infos:['편도 약 4시간 · 인삼랜드/문산 휴게소 1회 정차 권장'] },
+      { t:'12:30', end:'13:50', name:'힙한식 점심', meta:'남해 솥밥 한정식', meal:true, lat:34.7286572, lng:128.0315614,
+        note:'미조에 있는 인기 솥밥 한정식집(쏠비치에서 차 10분). 갓 지은 솥밥에 정갈한 반찬 구성으로, 해산물 없이도 든든합니다.',
+        recs:['채소·육류 솥밥','남해 시금치 반찬','누룽지'],
+        infos:['11:00–16:00 · 화요일 휴무(일요일 영업)','인기 식당이라 오픈런 또는 예약 권장'],
+        tel:'+82-70-8810-1966' },
+      { t:'14:00', end:'14:50', name:'설리스카이워크', meta:'전망대 · 스카이 그네', lat:34.7084856, lng:128.0221763,
+        note:'호텔 바로 옆 설리해변 위 유리바닥 전망대. 화요일 휴무라 오늘이 유일한 기회입니다.',
+        warn:'화요일 휴무 — 오늘 필수',
+        recs:['스카이 그네','유리바닥 전망대','설리해변 조망'],
+        infos:['입장 2,000원 · 그네 별도(5,000원 이하)','09:00–17:30 운영'],
+        tel:'+82-55-867-4252' },
+      { t:'15:00', end:'23:59', name:'쏠비치 남해 체크인', meta:'미조면 미송로303번길 115', lat:34.7062, lng:128.0245,
+        note:'이탈리아 포지타노를 모티브로 한 5성급 리조트. 전 객실 오션뷰.',
+        recs:['인피니티풀','리스토란테(뷔페)','비스트로 개미(주류)','설리해변 일몰 산책'],
+        infos:['체크인 15:00 · 체크아웃 11:00','인피니티풀 투숙객도 유료 — 소노 앱 신규가입 50% 쿠폰','저녁: 리스토란테(파스타·피자·그릴) 등 호텔 다이닝'] }
+    ]
+  },
+  {
+    label: 'DAY 2 · 7/6 월요일 — 남해 명소 몰아보기',
+    stops: [
+      { t:'09:10', end:'11:10', name:'보리암 (금산)', meta:'호텔에서 35분', lat:34.7520219, lng:127.9829597,
+        note:'한려해상 파노라마가 발아래 펼쳐지는 남해 1번 명소. 주차 대기가 생기기 전 오전 도착이 핵심입니다.',
+        warn:'9시 전후 도착 권장',
+        recs:['해수관음상 전망','금산 정상(도보 10분 추가)'],
+        infos:['입장 1,000원 · 주차 별도','2주차장에서 도보 약 20분 · 오르막'],
+        tel:'+82-55-862-6500' },
+      { t:'11:40', end:'12:20', name:'상주은모래비치 산책', meta:'해변 산책 40분', lat:34.7207835, lng:127.9880887,
+        note:'고운 모래 해변을 따라 가볍게. 물놀이 대신 산책 코스로.',
+        recs:['해변 산책','비치 앞 카페 커피'],
+        infos:['공영주차장 있음'] },
+      { t:'12:50', end:'13:40', name:'다랭이마을 산책', meta:'계단식 논 · 지겟길', lat:34.7272811, lng:127.8944028,
+        note:'바다 절벽으로 층층이 내려가는 계단식 논 마을. 마을 한 바퀴 돌며 바다 절경을 감상합니다.',
+        recs:['다랭이지겟길 산책','바다 전망 포토존'],
+        infos:['경사 가파름 — 편한 신발 필수','마을 위 공영주차장 이용'] },
+      { t:'13:45', end:'14:50', name:'돈나라 점심', meta:'남해 흑돼지 BBQ', meal:true, lat:34.7727536, lng:127.8750478,
+        note:'다랭이마을 인근 남면의 흑돼지 생갈비 맛집. 부드러운 생갈비와 정갈한 반찬으로 해산물 없이 든든한 점심.',
+        recs:['흑돼지 생갈비','한우 차돌','된장찌개 마무리'],
+        infos:['다랭이마을에서 차 10분 · 아난티 근처','점심 피크엔 대기 가능'] },
+      { t:'15:00', end:'15:40', name:'앵강마켓', meta:'특산품 편집숍 · 카페', lat:34.7711228, lng:127.8874571,
+        note:'폐교를 고친 편집숍 겸 카페. 월요일 정상영업이며 화요일 휴무라 오늘 들릅니다.',
+        warn:'12–17시 운영 · 화요일 휴무',
+        recs:['유자병차','호지차','유자청 · 미역 기념품'],
+        infos:['선물용 패키지가 좋아 기념품 쇼핑 최적'],
+        tel:'+82-55-863-0772' },
+      { t:'16:30', end:'23:59', name:'호텔 복귀 · 휴식', meta:'풀 · 사우나 · 저녁', lat:34.7062, lng:128.0245,
+        note:'오후는 리조트에서 여유 있게. 건물 자체가 예뻐서 시간대별 산책 사진이 잘 나옵니다.',
+        recs:['인피니티풀 · 사우나','호텔 다이닝(그릴·이탈리안)','일몰 산책'],
+        infos:['풀 이용 시 수영복 착용 후 이동 가능(락커·사우나 완비)'] }
+    ]
+  },
+  {
+    label: 'DAY 3 · 7/7 화요일 — 동쪽 코스와 귀가',
+    stops: [
+      { t:'09:30', end:'09:55', name:'체크아웃 · 물미해안도로', meta:'해안 드라이브', noMap:true,
+        note:'미조에서 독일마을까지 해안선을 따라 북상하는, 남해에서 가장 아름다운 드라이브 구간.',
+        infos:['중간 전망 포인트에서 잠깐 정차 추천'] },
+      { t:'10:00', end:'10:45', name:'물건방조어부림', meta:'천연기념물 숲', lat:34.7960258, lng:128.0503309,
+        note:'독일마을 바로 아래, 370년 된 방풍림. 숲 그늘과 몽돌해변을 30분 산책합니다.',
+        recs:['몽돌해변 산책','숲길 그늘 걷기'],
+        infos:['천연기념물 제150호 · 상시 개방 · 무료'] },
+      { t:'11:00', end:'12:20', name:'독일마을 점심', meta:'학센 · 독일 요리', meal:true, lat:34.7997168, lng:128.0386376,
+        note:'파독 광부·간호사 정착촌. 마을 식당에서 학센·소시지·수제맥주로 해산물 없는 이국적 점심을 즐깁니다.',
+        recs:['학센(족발)','수제 소시지 · 브레첼','수제맥주'],
+        infos:['11시 이후 대부분 영업 시작','언덕 위에서 물건리 바다 조망'],
+        tel:'+82-55-867-8897' },
+      { t:'12:40', end:'13:05', name:'죽방렴 관람대', meta:'전통 어업 유산', lat:34.8312862, lng:128.0062033,
+        note:'좁은 물목에 대나무발을 세워 고기를 잡는, 남해에만 남은 원시 어업. 귀갓길 동선 위라 잠깐 둘러보기 좋습니다.',
+        recs:['죽방렴 전망 · 사진'],
+        infos:['관람 무료 · 15–20분이면 충분'] },
+      { t:'13:10', end:'13:10', name:'창선-삼천포대교로 귀가', meta:'귀갓길', noMap:true,
+        note:'죽방렴에서 창선-삼천포대교를 건너 귀가. 다섯 개 다리가 이어지는 경치를 감상하며, 18시 전 동탄 도착 예상.',
+        infos:['필요 시 사천·진주 나들목 인근에서 저녁 식사'] }
+    ]
+  }
+];
+
+/* ── 지도 ── */
+const map = L.map('map', { zoomControl:false }).setView([34.76, 127.99], 10);
+L.control.zoom({ position:'topleft' }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom:18, attribution:'&copy; OpenStreetMap'
+}).addTo(map);
+let dayLayer = L.layerGroup().addTo(map);
+let markers = {};   // stop index -> marker
+
+const $stops = document.getElementById('stops');
+const $dayline = document.getElementById('dayline');
+const chips = document.querySelectorAll('.chip');
+let curDay = 0;
+
+const todayStr = new Date().toISOString().slice(0,10);
+const tripIdx = TRIP_DATES.indexOf(todayStr);
+if (tripIdx >= 0) curDay = tripIdx;
+
+function gnav(s){ return 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng; }
+function nmap(s){
+  return 'https://map.naver.com/p/search/' +
+    encodeURIComponent(s.name.replace(/ 점심| 산책| 체크인|체크아웃 · |호텔 복귀.*/g,''));
+}
+function isNow(s){
+  if (tripIdx !== curDay) return false;
+  const now = new Date();
+  const hm = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  return hm >= s.t && hm <= s.end;
+}
+
+function renderMap(day){
+  dayLayer.clearLayers();
+  markers = {};
+  const pts = [];
+  day.stops.forEach((s, i) => {
+    if (s.noMap) return;
+    pts.push([s.lat, s.lng]);
+    const icon = L.divIcon({
+      className:'',
+      html:'<div class="num-marker' + (s.meal?' meal':'') + '">' + (i+1) + '</div>',
+      iconSize:[28,28], iconAnchor:[14,14]
+    });
+    const m = L.marker([s.lat, s.lng], { icon }).addTo(dayLayer)
+      .bindPopup('<b>' + s.name + '</b><br>' + s.t + ' · ' + s.meta +
+        '<br><a href="' + gnav(s) + '" target="_blank" rel="noopener">길찾기 →</a>');
+    m.on('click', () => openCard(i, false));
+    markers[i] = m;
+  });
+  L.polyline(pts, { color:'#1F6E7E', weight:3, dashArray:'6 8', opacity:.7 }).addTo(dayLayer);
+  if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.18));
+}
+
+function renderList(day){
+  $dayline.textContent = day.label;
+  $stops.innerHTML = day.stops.map((s, i) => {
+    const now = isNow(s);
+    return (
+    '<article class="stop' + (s.meal?' meal':'') + (now?' now':'') + '" data-i="' + i + '" id="stop-' + i + '">' +
+      '<div class="row1">' +
+        '<span class="num">' + (i+1) + '</span>' +
+        '<div class="tt">' +
+          '<div class="name">' + s.name + '</div>' +
+          '<div class="meta">' + s.t + (s.end !== '23:59' ? '–' + s.end : '~') + ' · ' + s.meta + '</div>' +
+        '</div>' +
+        (now ? '<span class="badge-now">지금</span>' : '') +
+        '<svg class="caret" viewBox="0 0 24 24"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg>' +
+      '</div>' +
+      '<div class="detail">' +
+        '<p class="note">' + s.note + '</p>' +
+        (s.warn ? '<span class="warn">' + s.warn + '</span>' : '') +
+        (s.recs ? '<div class="sec"><div class="h">추천</div><div class="recs">' +
+          s.recs.map(r => '<span class="rec">' + r + '</span>').join('') + '</div></div>' : '') +
+        (s.infos ? '<div class="sec"><div class="h">정보</div><ul class="infos">' +
+          s.infos.map(t => '<li>' + t + '</li>').join('') + '</ul></div>' : '') +
+        (s.lat ?
+        '<div class="btns">' +
+          '<a class="btn btn-primary" href="' + gnav(s) + '" target="_blank" rel="noopener">' +
+            '<svg viewBox="0 0 24 24"><path d="M21.7 11.3l-9-9a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4zM13 14.5V12h-3v3H8v-4a1 1 0 0 1 1-1h4V7.5l3.5 3.5-3.5 3.5z"/></svg>길찾기</a>' +
+          '<a class="btn btn-ghost" href="' + nmap(s) + '" target="_blank" rel="noopener">네이버 지도</a>' +
+          (s.tel ? '<a class="btn btn-ghost" href="tel:' + s.tel + '">전화</a>' : '') +
+        '</div>' : '') +
+      '</div>' +
+    '</article>');
+  }).join('');
+
+  $stops.querySelectorAll('.stop').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('a')) return;
+      openCard(+el.dataset.i, true);
+    });
+  });
+}
+
+/* 카드 열기: 펼침 + 지도 이동. fromCard=true면 토글 */
+function openCard(i, fromCard){
+  const day = DAYS[curDay];
+  const s = day.stops[i];
+  const el = document.getElementById('stop-' + i);
+  if (!el) return;
+  const wasOpen = el.classList.contains('open');
+  $stops.querySelectorAll('.stop').forEach(c => c.classList.remove('active','open'));
+  el.classList.add('active');
+  if (!(fromCard && wasOpen)) el.classList.add('open');
+  if (!fromCard) el.scrollIntoView({ behavior:'smooth', block:'center' });
+  if (s.lat && markers[i]) {
+    map.setView([s.lat, s.lng], 14);
+    markers[i].openPopup();
+  }
+}
+
+function render(){
+  const day = DAYS[curDay];
+  renderMap(day);
+  renderList(day);
+  const nowIdx = day.stops.findIndex(isNow);
+  if (nowIdx >= 0) openCard(nowIdx, false);
+}
+
+chips.forEach((chip, i) => {
+  chip.addEventListener('click', () => {
+    chips.forEach(c => c.setAttribute('aria-selected','false'));
+    chip.setAttribute('aria-selected','true');
+    curDay = i;
+    render();
+  });
+});
+chips.forEach((c,i) => c.setAttribute('aria-selected', i === curDay ? 'true' : 'false'));
+render();
+
+/* sticky 영역 안에서 지도 높이가 0으로 잡히는 문제 방지: 레이아웃 확정 후 크기 재계산 */
+function fixMapSize(){
+  map.invalidateSize();
+  const day = DAYS[curDay];
+  const pts = day.stops.filter(s => !s.noMap).map(s => [s.lat, s.lng]);
+  if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.18));
+}
+window.addEventListener('load', () => setTimeout(fixMapSize, 200));
+setTimeout(fixMapSize, 400);
+
+/* ── 내 위치 ── */
+let watchId = null, meMarker = null, meCircle = null;
+const locateBtn = document.getElementById('locateBtn');
+locateBtn.addEventListener('click', () => {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    if (meMarker) { map.removeLayer(meMarker); meMarker = null; }
+    if (meCircle) { map.removeLayer(meCircle); meCircle = null; }
+    locateBtn.classList.remove('on');
+    locateBtn.setAttribute('aria-pressed','false');
+    return;
+  }
+  if (!('geolocation' in navigator)) {
+    alert('이 브라우저는 위치 기능을 지원하지 않습니다.');
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(pos => {
+    const { latitude:lat, longitude:lng, accuracy } = pos.coords;
+    if (!meMarker) {
+      meMarker = L.marker([lat, lng], {
+        icon: L.divIcon({ className:'', html:'<div class="me-marker"></div>', iconSize:[16,16], iconAnchor:[8,8] })
+      }).addTo(map);
+      meCircle = L.circle([lat, lng], { radius:accuracy, color:'#2A7FFF', weight:1, fillOpacity:.08 }).addTo(map);
+      map.setView([lat, lng], 13);
+    } else {
+      meMarker.setLatLng([lat, lng]);
+      meCircle.setLatLng([lat, lng]).setRadius(accuracy);
+    }
+  }, () => {
+    alert('위치를 가져올 수 없습니다. 위치 권한과 HTTPS 접속을 확인해 주세요.');
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    locateBtn.classList.remove('on');
+    locateBtn.setAttribute('aria-pressed','false');
+  }, { enableHighAccuracy:true, maximumAge:5000 });
+  locateBtn.classList.add('on');
+  locateBtn.setAttribute('aria-pressed','true');
+});
+</script>
+
+</body>
+</html>
