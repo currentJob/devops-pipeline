@@ -84,22 +84,29 @@ uv run python -m app.worker.server  # 워커 (별도 터미널)
 
 ## 아키텍처
 
-```
-[Telegram] ──명령──▶ [Bot :8765]
-                         │  작업 위임 (HTTP POST /run)
-                         ▼
-                  [Worker :8766]
-                         │
-              ┌──────────────────────────┐
-              │  LangGraph Gateway        │
-              │  retrieve → route → exec  │
-              └──────────┬───────────────┘
-        ┌─────┬─────┬──────┬─────┬─────┬─────────┐
-       code  doc  infra  stack  poc  general   ← 전문 에이전트 (tool-use)
-        └─────┴─────┴──────┴─────┴─────┴─────────┘
-                         │  도구: read_file/write_file/bash/recent_research/vault_*
-                         ▼  결과 전송 (HTTP POST /worker-result)
-                  [Bot] ──응답──▶ [Telegram]
+``` mermaid
+sequenceDiagram
+    autonumber
+    participant TG as Telegram
+    participant BOT as Bot :8765
+    participant WORKER as Worker :8766
+    participant LG as LangGraph Gateway
+    participant AGENT as 전문 에이전트<br/>(tool-use)
+    participant TOOLS as Tools
+
+    TG->>BOT: 명령
+    BOT->>WORKER: 작업 위임<br/>HTTP POST /run
+    WORKER->>LG: 작업 요청
+
+    LG->>LG: retrieve → route → exec
+    LG->>AGENT: 전문 에이전트 호출<br/>code / doc / infra / stack / poc / general
+    AGENT->>TOOLS: 도구 사용<br/>read_file / write_file / bash / recent_research / vault_*
+    TOOLS-->>AGENT: 도구 실행 결과
+    AGENT-->>LG: 처리 결과
+    LG-->>WORKER: 작업 결과
+
+    WORKER-->>BOT: 결과 전송<br/>HTTP POST /worker-result
+    BOT-->>TG: 응답
 ```
 
 - **Bot ↔ Worker** 는 HTTP 로 분리 — 각각 독립 컨테이너로 스케일 가능.
