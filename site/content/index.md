@@ -1,32 +1,45 @@
 ---
-title: "DevOps Vault"
+title: "CurrentJob Engineering"
+description: "AI, 개발 도구, 인프라의 변화를 실무 관점으로 정리하는 기술 블로그"
 publish: true
+cssclasses:
+  - home
 tags:
   - type/index
 ---
 
-> [!abstract] DevOps Vault — 기술 노트
-> AI 에이전트와 DevOps, 인프라, 그리고 새로 떠오르는 IT 트렌드를 직접 파고들어 한국어로 정리하는 기술 블로그입니다.
+<section class="blog-hero">
+  <p class="eyebrow">CURRENTJOB ENGINEERING</p>
+  <h1>빠르게 바뀌는 기술을<br />실무의 언어로 정리합니다.</h1>
+  <p class="hero-copy">AI, 개발 도구, 클라우드와 보안의 변화를 조사하고 검증해 한국어로 기록합니다. 자동화가 자료를 모으고, 사람이 공개할 글을 최종 선택합니다.</p>
+  <div class="hero-actions">
+    <a class="primary-action" href="./트렌드/">최신 트렌드 읽기</a>
+    <a class="secondary-action" href="./tags/">태그로 탐색하기</a>
+  </div>
+</section>
 
-낯선 도구와 패턴을 끝까지 조사해 핵심만 추린 글을 모았습니다. 아래 주제로 바로 들어가거나, 왼쪽 **Explorer** 와 글마다 달린 **태그**로 관심 분야를 둘러보세요.
+## 관심 주제로 바로 가기
 
-## 어떻게 만들어지나요
+<section class="category-grid">
+  <a class="category-card category-trend" href="./트렌드/">
+    <span class="category-kicker">RADAR</span>
+    <strong>트렌드</strong>
+    <span>AI·개발 도구·인프라의 중요한 변화를 빠르게 훑습니다.</span>
+  </a>
+  <a class="category-card category-life" href="./라이프/">
+    <span class="category-kicker">LIFE</span>
+    <strong>라이프</strong>
+    <span>일과 생활에서 반복해 쓸 수 있는 작은 지식을 모읍니다.</span>
+  </a>
+</section>
 
-이 블로그의 글은 **AI 에이전트가 최신 기술 트렌드를 자동으로 조사·정리**해 씁니다.
+## 글이 만들어지는 방식
 
-- 🔎 **조사** — 에이전트가 웹·개발자 커뮤니티에서 떠오르는 IT 트렌드를 리서치
-- ✍️ **작성** — 기존 노트와 중복을 피해 핵심만 한국어 노트로 자동 정리
-- ✅ **발행** — 사람이 선별해 공개 (모든 글이 자동 게시되지는 않습니다)
+<div class="editorial-steps">
+  <div><b>01 · 조사</b><span>공식 발표와 1차 출처를 먼저 확인합니다.</span></div>
+  <div><b>02 · 정리</b><span>변화가 실제 개발 업무에 주는 영향을 추립니다.</span></div>
+  <div><b>03 · 검토</b><span>출처와 공개 범위를 사람이 확인한 글만 게시합니다.</span></div>
+</div>
 
-즉, 사람의 손이 닿는 마지막 선별만 빼면 **조사부터 초안 작성까지 자동화**된 기술 노트입니다.
-
-## 주제별로 보기
-
-- [📂 IT 트렌드](<IT 트렌드/>) — 새로 떠오르는 기술과 흐름
-- [🗂️ 아카이브](<archive/>) — 지난 설계·연구 노트
-
-## 둘러보는 법
-
-- **Explorer**(왼쪽) — 카테고리(폴더)별 전체 글 목록
-- **태그** — `area/`·`tech/` 로 관심 분야만 모아 보기
-- **백링크 · 그래프** — 노트 사이 연결을 따라가며 탐색
+> [!info] 탐색 팁
+> 왼쪽 카테고리는 글의 성격을, 태그는 기술과 주제를 나타냅니다. 본문 오른쪽 목차를 사용하면 긴 리서치 글도 빠르게 이동할 수 있습니다.

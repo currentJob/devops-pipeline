@@ -32,8 +32,8 @@ def test_export_publishes_only_flagged(tmp_path):
     n = pv.export(vault, out)
 
     assert n == 1
-    assert (out / "IT 트렌드" / "pub.md").exists()  # 발행 + 폴더(카테고리) 보존
-    assert not (out / "IT 트렌드" / "priv.md").exists()  # 미발행 제외
+    assert (out / "트렌드" / "pub.md").exists()  # 공개 카테고리명으로 정규화
+    assert not (out / "트렌드" / "priv.md").exists()  # 미발행 제외
 
 
 def test_export_excludes_generated_and_digests(tmp_path):
@@ -62,3 +62,35 @@ def test_export_generates_default_homepage(tmp_path):
     # index.md 가 발행 노트에 없으면 기본 홈페이지 생성
     assert (out / "index.md").exists()
     assert "publish: true" in (out / "index.md").read_text(encoding="utf-8")
+
+
+def test_export_preserves_articles_owned_by_another_publisher(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "pub.md").write_text("---\npublish: true\n---\nA", encoding="utf-8")
+    out = tmp_path / "content"
+    (out / "트렌드").mkdir(parents=True)
+    external = out / "트렌드" / "harness-external.md"
+    external.write_text("external", encoding="utf-8")
+
+    pv.export(vault, out)
+    (vault / "pub.md").write_text("---\ntitle: private\n---\nA", encoding="utf-8")
+    pv.export(vault, out)
+
+    assert external.read_text(encoding="utf-8") == "external"
+    assert not (out / "pub.md").exists()
+
+
+def test_export_rejects_an_unsafe_manifest_path(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    out = tmp_path / "content"
+    out.mkdir()
+    (out / pv.MANIFEST).write_text('["../outside.md"]', encoding="utf-8")
+
+    try:
+        pv.export(vault, out)
+    except ValueError as exc:
+        assert "안전하지 않은 경로" in str(exc)
+    else:
+        raise AssertionError("unsafe manifest path must be rejected")

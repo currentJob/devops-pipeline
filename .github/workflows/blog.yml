@@ -1,11 +1,14 @@
 # 기술 블로그 (Quartz v4) 빌드·배포.
 #
-# 소스 = site/content/ (scripts/publish_vault.py 가 vault 의 publish:true 노트만 export 한 것).
-#   vault/ 자체는 .gitignore(비공개)라 CI 에 없음 — 발행 노트만 git 에 들어온다.
+# 소스 = site/content/ (vault export와 승인된 외부 게시가 함께 쓰는 공개 계층).
+#   vault/ 자체는 .gitignore(비공개)라 CI 에 없고, 공개 조건을 충족한 게시본만 들어온다.
 # Quartz 본체는 레포에 두지 않고 CI 에서 클론 → 우리는 site/quartz.config.ts 만 관리.
 #
 # 사전 1회 설정: 레포 Settings → Pages → Source 를 "GitHub Actions" 로 지정.
 name: Publish vault blog
+
+env:
+  QUARTZ_COMMIT: d25a6eabf96751ffca56f8a8139272def7a65041
 
 on:
   push:
@@ -32,9 +35,14 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Clone Quartz (v4 pinned)
-        # 기본 브랜치는 v5 로 바뀌었고 config 형식이 다르다 — v4 브랜치로 고정.
-        run: git clone --depth 1 --branch v4 https://github.com/jackyzha0/quartz.git "$RUNNER_TEMP/quartz"
+      - name: Fetch tested Quartz revision
+        # 브랜치 이름만 고정하면 upstream 변경으로 같은 커밋이 다르게 빌드될 수 있다.
+        run: |
+          git init "$RUNNER_TEMP/quartz"
+          git -C "$RUNNER_TEMP/quartz" remote add origin https://github.com/jackyzha0/quartz.git
+          git -C "$RUNNER_TEMP/quartz" fetch --depth 1 origin "$QUARTZ_COMMIT"
+          git -C "$RUNNER_TEMP/quartz" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/quartz" rev-parse HEAD)" = "$QUARTZ_COMMIT"
 
       - name: Overlay config + custom styles + published content
         run: |

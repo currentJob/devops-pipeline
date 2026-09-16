@@ -1,6 +1,7 @@
-# vault 기술 블로그 (Quartz v4)
+# CurrentJob Engineering 블로그 (Quartz v4)
 
-`vault/` 의 Obsidian 노트 중 **발행 표시한 것만** 정적 사이트로 공개한다. 봇이 쌓은 지식 노트를 카테고리별로 보여주는 기술 블로그.
+`vault/`의 발행 노트와 외부 하네스에서 명시적으로 승인한 글을 `site/content/`에 모아 공개한다.
+공개 URL은 저장용 경로를 그대로 드러내지 않고 **카테고리 한 단계 + 글 파일**로 유지한다.
 
 ## 공개 정책 (핵심)
 
@@ -19,7 +20,8 @@
 
 ```
 vault/ (비공개)            site/content/ (git 추적)        GitHub Pages
-  publish:true 노트  ──export──▶  발행 노트만   ──push→Quartz──▶  사이트
+  publish:true 노트  ──export──▶  카테고리/글.md ──push→Quartz──▶ 사이트
+  승인된 외부 글     ──publish─▶  카테고리/글.md ────────────────▶
 ```
 
 → **미발행 노트는 git 에 절대 올라가지 않는다.** (public repo 안전)
@@ -33,15 +35,16 @@ tags: [tech/qdrant]
 ```
 
 - `_` 로 시작하는 생성물(MOC/Dashboard), `digests/` 폴더 → export 제외
-- 카테고리 = vault 폴더 구조 보존(예: `IT 트렌드/`) → Quartz Explorer·폴더 페이지
+- 공개 카테고리는 최상위 한 단계만 사용한다. 기존 `IT 트렌드/`는 `트렌드/`, `생활요리/`는 `라이프/`로 정규화한다.
+- `.vault-export-manifest.json`에 기록된 vault 소유 파일만 다음 export에서 교체한다. 외부 하네스가 게시한 글은 보존한다.
 - 계층 태그(`type/`·`area/`·`tech/`) → 태그 페이지
-- 발행 노트에 `index.md` 가 없으면 export 가 기본 홈페이지를 생성
+- 홈페이지 `index.md`는 편집자가 관리하며, 없을 때만 기본 홈페이지를 생성한다.
 
 ## 구성
 
-- [`quartz.config.ts`](quartz.config.ts) — Quartz 설정(우리가 관리). Quartz 본체는 CI 에서 클론.
+- [`quartz.config.ts`](quartz.config.ts) — Quartz 설정(우리가 관리). Quartz 본체는 CI에서 검증한 커밋으로 고정해 가져온다.
 - [`styles/custom.scss`](styles/custom.scss) — 모던 테크 디자인·애니메이션 커스텀 CSS. CI 가 클론한 Quartz 의 `quartz/styles/custom.scss` 로 덮어쓴다.
-- `content/` — `publish_vault.py` 가 생성하는 발행물(git 추적). 직접 편집하지 말 것.
+- `content/` — 여러 승인 게시 경로가 공유하는 공개 콘텐츠 계층. 각 게시자는 자신이 소유한 파일만 갱신한다.
 - 빌드·배포 — [`.github/workflows/blog.yml`](../.github/workflows/blog.yml)
 
 ## 최초 1회 설정
@@ -55,6 +58,7 @@ tags: [tech/qdrant]
 python scripts/publish_vault.py                       # vault → site/content
 git clone --branch v4 https://github.com/jackyzha0/quartz.git /tmp/quartz
 cp site/quartz.config.ts /tmp/quartz/quartz.config.ts
+cp site/quartz.layout.ts /tmp/quartz/quartz.layout.ts
 cp site/styles/custom.scss /tmp/quartz/quartz/styles/custom.scss   # 모던 테크 스타일/애니메이션
 rm -rf /tmp/quartz/content && cp -r site/content /tmp/quartz/content
 cd /tmp/quartz && npm i && npx quartz build --serve   # http://localhost:8080

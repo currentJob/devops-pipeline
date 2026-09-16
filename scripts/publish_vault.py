@@ -7,11 +7,13 @@ vault/ 자체는 .gitignore 로 비공개(.env 취급)이므로, 미발행 노�
       → site/content 갱신 → 커밋·푸시 → .github/workflows/blog.yml 이 Quartz 로 빌드·배포.
 
 제외: `_` 로 시작하는 생성물(MOC/Dashboard), `digests/` 폴더.
-카테고리: vault 의 폴더 구조를 그대로 보존(= Quartz 의 폴더 페이지/Explorer).
+카테고리: 공개 경로는 한 단계로 정규화하고, 이전 export 가 소유한 파일만 갱신한다.
+Telegram 등 다른 게시 경로가 만든 글은 건드리지 않는다.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import sys
@@ -20,6 +22,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VAULT = ROOT / "vault"
 OUT = ROOT / "site" / "content"
+MANIFEST = ".vault-export-manifest.json"
+
+CATEGORY_ALIASES = {
+    "IT 트렌드": "트렌드",
+    "생활요리": "라이프",
+}
 
 _FM_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 _PUBLISH_RE = re.compile(r"^publish:\s*true\s*$", re.IGNORECASE | re.MULTILINE)
@@ -62,24 +70,68 @@ def collect(vault: Path) -> list[Path]:
     return out
 
 
+def public_path(relative: Path) -> Path:
+    """Normalize only the top-level category; article depth stays unchanged."""
+    if not relative.parts:
+        raise ValueError("빈 vault 경로는 게시할 수 없습니다.")
+    category = CATEGORY_ALIASES.get(relative.parts[0], relative.parts[0])
+    return Path(category, *relative.parts[1:])
+
+
+def _owned(out: Path) -> set[str]:
+    manifest = out / MANIFEST
+    if not manifest.exists():
+        return set()
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("vault export manifest를 읽을 수 없습니다.") from exc
+    if not isinstance(data, list) or any(not isinstance(item, str) for item in data):
+        raise ValueError("vault export manifest 형식이 올바르지 않습니다.")
+    return set(data)
+
+
+def _remove_owned(out: Path, relative: str) -> None:
+    path = (out / relative).resolve()
+    root = out.resolve()
+    if not path.is_relative_to(root) or path.suffix != ".md":
+        raise ValueError("vault export manifest에 안전하지 않은 경로가 있습니다.")
+    if path.is_file():
+        path.unlink()
+    parent = path.parent
+    while parent != root and parent.is_dir() and not any(parent.iterdir()):
+        parent.rmdir()
+        parent = parent.parent
+
+
 def export(vault: Path, out: Path) -> int:
-    """발행 노트를 폴더 구조 보존해 out 으로 복사(깨끗이 재생성). 발행 개수 반환."""
-    if out.exists():
-        shutil.rmtree(out)
+    """Refresh vault-owned output while preserving articles from other publishers."""
     out.mkdir(parents=True, exist_ok=True)
     (out / ".gitkeep").write_text("", encoding="utf-8")
 
+    for relative in sorted(_owned(out)):
+        _remove_owned(out, relative)
+
     notes = collect(vault)
+    exported = []
     for p in notes:
-        dest = out / p.relative_to(vault)
+        relative = public_path(p.relative_to(vault))
+        if relative.as_posix() == "index.md":
+            continue
+        dest = out / relative
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(p, dest)
+        exported.append(relative.as_posix())
+
+    (out / MANIFEST).write_text(
+        json.dumps(sorted(exported), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
     # 홈페이지 보장 — 발행 노트에 index.md 가 없으면 기본 랜딩 생성
     if not (out / "index.md").exists():
         (out / "index.md").write_text(_DEFAULT_INDEX, encoding="utf-8")
 
-    return len(notes)
+    return len(exported)
 
 
 def main() -> int:
