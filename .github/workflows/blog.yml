@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Clone Quartz (v4 pinned)
         # 기본 브랜치는 v5 로 바뀌었고 config 형식이 다르다 — v4 브랜치로 고정.
