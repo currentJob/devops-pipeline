@@ -10,6 +10,7 @@ dependencies = [
     "python-telegram-bot>=22.8",
     "psutil>=6.0.0",
     "aiohttp>=3.14.3",  # 3.14.3 미만은 PYSEC-2026-3545·3546·3547
+    "anyio>=4.14.2",  # 4.14.2 미만은 CVE-2026-63374(TLS 호스트명)·CVE-2026-64847
     "prometheus-client>=0.25.0",
     "sqlalchemy[asyncio]>=2.0.51",
     "asyncpg>=0.31.0",
