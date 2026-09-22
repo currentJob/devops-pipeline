@@ -6,6 +6,11 @@ on:
     tags: ["v*.*.*"]
   pull_request:
     branches: [main]
+  # 코드가 그대로여도 의존성 취약점은 새로 공개된다. 게시 커밋이 우연히 CI 를 돌려
+  # 주던 것을 아래에서 없애므로, 정기 감사를 명시적인 일정으로 돌린다. (월 09:00 KST)
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,7 +21,66 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # 블로그 게시는 site/content/ 만 건드리는데 그때마다 앱 전체 CI(테스트·이미지 빌드·
+  # 스캔·레지스트리 푸시)가 돌았다. 글 한 편이 파이썬 앱을 검증할 이유는 없다.
+  #
+  # `on.push` 에 paths-ignore 를 다는 대신 잡 단계에서 거른다. 이 push 트리거는 태그도
+  # 받는데, 경로 필터가 태그 푸시에 어떻게 적용되는지는 GitHub 문서가 정의하지 않는다
+  # (조회 2026-09-22). 릴리스 태그가 조용히 걸러져 registry-push·vllm-build 가 건너뛰는
+  # 쪽이 게시 커밋이 CI 를 도는 것보다 훨씬 나쁘다.
+  changes:
+    name: 코드 변경 판별
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 비교 기준 커밋이 얕은 클론에 없으면 판별할 수 없다.
+
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          HEAD_SHA: ${{ github.sha }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        # 판단이 서지 않으면 돌린다. 검사를 건너뛴 채 통과로 보고하는 것보다
+        # 불필요하게 한 번 더 도는 쪽이 낫다.
+        run: |
+          set -uo pipefail
+          run_all() { echo "code=true" >> "$GITHUB_OUTPUT"; echo "::notice::전체 CI 를 실행합니다 ($1)"; exit 0; }
+
+          case "$EVENT" in
+            push)
+              case "$REF" in refs/tags/*) run_all "릴리스 태그" ;; esac
+              BASE_SHA="$BEFORE" ;;
+            pull_request) BASE_SHA="$BASE" ;;
+            *) run_all "$EVENT" ;;
+          esac
+
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            run_all "비교 기준 없음"
+          fi
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            run_all "비교 기준 커밋을 찾을 수 없음"
+          fi
+
+          CHANGED="$(git -c core.quotePath=false diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          echo "변경된 파일:"; echo "$CHANGED"
+          if [ -z "$CHANGED" ]; then
+            run_all "변경 파일 목록이 비어 있음"
+          fi
+          if printf '%s\n' "$CHANGED" | grep -qvE '^site/content/'; then
+            run_all "앱 코드 변경 포함"
+          fi
+
+          echo "code=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::게시 문서(site/content/)만 바뀌어 앱 CI 를 건너뜁니다. 블로그 배포는 blog.yml 이 합니다."
+
   lint-test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +110,9 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     needs: lint-test
+    # 주간 감사는 의존성·이미지 취약점을 보는 것이 목적이다. 컨테이너 기동까지
+    # 매주 돌릴 이유는 없고, 코드가 바뀌면 그 푸시에서 이미 돈다.
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@v4
 
