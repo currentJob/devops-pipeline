@@ -11,7 +11,11 @@ volumes:
   worker-data:
 
 services:
+  # bot·worker 는 기본 기동에서 제외한다. 텔레그램 봇은 claude-agent-harness 게이트웨이 하나로
+  # 확정됐고 같은 봇 토큰을 쓰므로, 여기서 bot 을 띄우면 두 폴러가 충돌(409)한다.
+  # 코드는 포트폴리오로 유지하며 필요할 때만 `docker compose --profile legacy-bot up` 으로 켠다.
   bot:
+    profiles: ["legacy-bot"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -40,6 +44,7 @@ services:
       start_period: 10s
 
   worker:
+    profiles: ["legacy-bot"]
     build:
       context: .
       dockerfile: Dockerfile

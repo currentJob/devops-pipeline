@@ -109,6 +109,10 @@ jobs:
 
   smoke:
     runs-on: ubuntu-latest
+    env:
+      # bot·worker 는 legacy-bot 프로필 뒤에 있다(텔레그램 봇은 하네스 게이트웨이로 이관).
+      # 코드 회귀 검증을 위해 CI 스모크에서는 프로필을 켠다.
+      COMPOSE_PROFILES: legacy-bot
     needs: lint-test
     # 주간 감사는 의존성·이미지 취약점을 보는 것이 목적이다. 컨테이너 기동까지
     # 매주 돌릴 이유는 없고, 코드가 바뀌면 그 푸시에서 이미 돈다.

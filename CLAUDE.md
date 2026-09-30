@@ -84,6 +84,7 @@ Detailed rules live in .claude/rules/ — they extend but do not override the pr
 9. Work Division & Workflow Routing
 Scale rigor to task complexity. Two distinct actors with different mandates:
 
+- Deployment status (2026-09-30): this repo's bot/worker are NOT deployed (compose profile `legacy-bot`). The live Telegram bot is the `claude-agent-harness` gateway (D:\claude-agent-harness, same bot token). This repo is kept as the tech blog (`site/`) and infra portfolio. Telegram bugs belong to the harness repo — confirm with the user before editing it.
 - Work division: the deployed Telegram bot/worker agents NEVER modify code. Their tools are sandboxed to research, documentation, and `prompts/output/` artifacts (write_file → `prompts/output/` only, bash → read-only allowlist, vault_save → `vault/` only). Applying code changes is the job of the local coding agent (Claude Code), not the bot. `/commit`·`/push` stay human-gated and only commit docs/output/vault changes.
 - Routing by complexity (for the LOCAL coding agent):
   - Light requests (small edits, single-file fixes, questions, explanations) → follow the principles in this CLAUDE.md and proceed proportionally. No heavyweight process.

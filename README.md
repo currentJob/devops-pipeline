@@ -1,5 +1,12 @@
 # DevOps 자동화 파이프라인
 
+> **운영 현황 (2026-09-30)** — 이 저장소는 **기술 블로그**(`site/`, GitHub Pages)와 **인프라 포트폴리오**
+> (CI/CD · 컨테이너 · Kubernetes · 모니터링 · PoC 샌드박스)로 유지합니다.
+> 텔레그램 봇은 비공개 저장소 `claude-agent-harness` 의 게이트웨이 하나로 이관했습니다 — 같은 봇 토큰을
+> 쓰므로 이 저장소의 `bot`·`worker` 는 기본 기동에서 빠져 있고(`legacy-bot` 프로필), 아래 봇 관련 설명은
+> 코드 참고용입니다. 글 원고는 어떤 저장소에도 올리지 않는 비공개 vault 에 두고, 하네스에서
+> 선택·승인한 발행본만 `site/content/` 로 게시됩니다. 이 저장소의 `vault/` 는 옛 봇이 쓰던 로컬 폴더입니다.
+
 > **Telegram 봇으로 제어하는 멀티 에이전트 DevOps 자동화 파이프라인** (LangGraph 오케스트레이션 · Anthropic Agent SDK / openai SDK)
 > 자연어 명령 → 게이트웨이가 전문 에이전트로 자동 분기 → 도구 사용(tool-use) 루프로 작업 수행 → 결과를 Telegram 으로 회신.
 
@@ -67,7 +74,7 @@ CLAUDE_API_KEY=...      # 워커 에이전트 구동에 필요
 ### 2. Docker Compose 로 실행 (로컬 빌드)
 
 ```bash
-docker compose up --build
+docker compose --profile legacy-bot up --build   # bot + worker (하네스 게이트웨이를 내린 뒤에만)
 ```
 
 ### 3. 로컬 실행 (개발용)
@@ -336,7 +343,7 @@ START → build ──(성공)──────────────▶ eval
 ### A. 로컬 (docker-compose)
 
 ```bash
-docker compose up --build                          # bot + worker
+docker compose --profile legacy-bot up --build     # bot + worker (기본 기동에서 제외)
 docker compose --profile vllm up                   # + 로컬 vLLM (GPU)
 docker compose --profile monitoring up             # + Prometheus + Grafana
 ```
